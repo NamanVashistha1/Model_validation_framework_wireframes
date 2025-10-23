@@ -1,5 +1,8 @@
 import { Issue } from '../types/redwood';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { useState } from 'react';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface FindingsTrendsChartProps {
   issues: Issue[];
@@ -15,12 +18,15 @@ const COLORS = {
 };
 
 export function FindingsTrendsChart({ issues }: FindingsTrendsChartProps) {
+  const [selectedStatus, setSelectedStatus] = useState('Pending');
+  const [selectedTrends, setSelectedTrends] = useState(['pending', 'closed']);
+
   // Findings by severity
   const severityData = [
-    { name: 'Critical', value: issues.filter(i => i.severity === 'Critical' && i.status === 'Pending').length, color: COLORS.Critical },
-    { name: 'High', value: issues.filter(i => i.severity === 'High' && i.status === 'Pending').length, color: COLORS.High },
-    { name: 'Medium', value: issues.filter(i => i.severity === 'Medium' && i.status === 'Pending').length, color: COLORS.Medium },
-    { name: 'Low', value: issues.filter(i => i.severity === 'Low' && i.status === 'Pending').length, color: COLORS.Low }
+    { name: 'Critical', value: issues.filter(i => i.severity === 'Critical' && (selectedStatus === 'All' || i.status === selectedStatus)).length, color: COLORS.Critical },
+    { name: 'High', value: issues.filter(i => i.severity === 'High' && (selectedStatus === 'All' || i.status === selectedStatus)).length, color: COLORS.High },
+    { name: 'Medium', value: issues.filter(i => i.severity === 'Medium' && (selectedStatus === 'All' || i.status === selectedStatus)).length, color: COLORS.Medium },
+    { name: 'Low', value: issues.filter(i => i.severity === 'Low' && (selectedStatus === 'All' || i.status === selectedStatus)).length, color: COLORS.Low }
   ];
 
   // Pending vs Closed trend (simulated monthly data)
@@ -39,12 +45,25 @@ export function FindingsTrendsChart({ issues }: FindingsTrendsChartProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Findings by Severity */}
         <div>
-          <h4 className="text-[#1A1816] mb-4">Open Findings by Severity</h4>
+          <h4 className="text-[#1A1816] mb-4">Findings by Severity</h4>
+          <div className="mb-4">
+            <Label>Select Status</Label>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={severityData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E0E1E3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} label={{ value: 'Severity', position: 'bottom' }} />
+              <YAxis tick={{ fontSize: 12 }} label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Bar dataKey="value" fill="#0067b8">
                 {severityData.map((entry, index) => (
@@ -58,15 +77,27 @@ export function FindingsTrendsChart({ issues }: FindingsTrendsChartProps) {
         {/* Pending vs Closed Trend */}
         <div>
           <h4 className="text-[#1A1816] mb-4">Findings Trend (Last 6 Months)</h4>
+          <div className="mb-4">
+            <Label>Select Trends to Display</Label>
+            <Select multiple value={selectedTrends} onValueChange={setSelectedTrends}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select trends" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E0E1E3" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="month" tick={{ fontSize: 12 }} label={{ value: 'Month', position: 'bottom' }} />
+              <YAxis tick={{ fontSize: 12 }} label={{ value: 'Count', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="pending" stroke={COLORS.Pending} name="Pending" strokeWidth={2} />
-              <Line type="monotone" dataKey="closed" stroke={COLORS.Closed} name="Closed" strokeWidth={2} />
+              {selectedTrends.includes('pending') && <Line type="monotone" dataKey="pending" stroke={COLORS.Pending} name="Pending" strokeWidth={2} />}
+              {selectedTrends.includes('closed') && <Line type="monotone" dataKey="closed" stroke={COLORS.Closed} name="Closed" strokeWidth={2} />}
             </LineChart>
           </ResponsiveContainer>
         </div>

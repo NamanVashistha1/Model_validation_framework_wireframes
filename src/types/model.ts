@@ -57,6 +57,9 @@ export interface Finding {
   dateIdentified: string;
   assignedTo?: string;
   evidence?: string[];
+  trackAsObservation?: boolean;
+  step?: string;
+  validatorComment?: string;
 }
 
 export interface ValidationStep {

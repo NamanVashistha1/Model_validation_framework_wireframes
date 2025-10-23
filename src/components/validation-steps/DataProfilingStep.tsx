@@ -2,249 +2,377 @@ import { useState } from 'react';
 import { Model, Finding } from '../../types/model';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Database, TrendingUp, AlertTriangle } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { CloudOff, Database } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Badge } from '../ui/badge';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { FileText, Upload } from 'lucide-react';
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 
 interface DataProfilingStepProps {
   model: Model;
   onComplete: () => void;
   onAddFinding: (finding: Omit<Finding, 'id'>) => void;
+  onSave?: () => void;
+  onSaveAndContinue?: () => void;
+  onCancel?: () => void;
 }
 
-// Mock data
-const dataQualityMetrics = [
-  { metric: 'Completeness', production: 98.5, training: 99.2, threshold: 95 },
-  { metric: 'Validity', production: 97.8, training: 98.5, threshold: 95 },
-  { metric: 'Consistency', production: 96.2, training: 98.1, threshold: 95 },
-  { metric: 'Timeliness', production: 99.1, training: 99.0, threshold: 95 }
-];
+export function DataProfilingStep({ model, onComplete, onAddFinding, onSave, onSaveAndContinue, onCancel }: DataProfilingStepProps) {
+  const dataSources = ['Training', 'Last Validation', 'Production'];
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
-const distributionData = [
-  { range: '0-10', production: 120, training: 115 },
-  { range: '10-20', production: 230, training: 245 },
-  { range: '20-30', production: 340, training: 325 },
-  { range: '30-40', production: 280, training: 295 },
-  { range: '40-50', production: 190, training: 185 },
-  { range: '50+', production: 140, training: 135 }
-];
+  const mockPastProductions = [
+    { date: '2023-09-01' },
+    { date: '2023-08-01' },
+    { date: '2023-07-01' }
+  ];
+  const [selectedProductionDate, setSelectedProductionDate] = useState('');
 
-const missingDataStats = [
-  { variable: 'credit_score', missing: 2.1, action: 'Imputed with median' },
-  { variable: 'income', missing: 3.5, action: 'Imputed with mean' },
-  { variable: 'employment_length', missing: 5.2, action: 'Categorical imputation' },
-  { variable: 'debt_ratio', missing: 1.8, action: 'Imputed with median' }
-];
+  const [generated, setGenerated] = useState(false);
 
-export function DataProfilingStep({ model, onComplete, onAddFinding }: DataProfilingStepProps) {
-  const [notes, setNotes] = useState('');
+  const features = ['credit_score', 'income', 'debt_ratio', 'employment_length'];
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(features);
 
-  const handleAutoCheck = () => {
-    // Simulate automated data quality check
-    const hasIssues = dataQualityMetrics.some(m => m.production < m.threshold);
-    if (hasIssues) {
-      onAddFinding({
-        category: 'Data Quality',
-        severity: 'Medium',
-        description: 'Data quality metrics below threshold detected',
-        recommendation: 'Review data pipeline and address quality issues',
-        status: 'Open',
-        dateIdentified: new Date().toISOString()
-      });
+  const mockDistributions: { [feature: string]: { [source: string]: { range: string; count: number }[] } } = {
+    credit_score: {
+      Training: [{ range: '0-300', count: 40 }, { range: '300-600', count: 220 }, { range: '600-900', count: 380 }, { range: '900+', count: 110 }],
+      'Last Validation': [{ range: '0-300', count: 45 }, { range: '300-600', count: 210 }, { range: '600-900', count: 390 }, { range: '900+', count: 105 }],
+      Production: [{ range: '0-300', count: 50 }, { range: '300-600', count: 200 }, { range: '600-900', count: 400 }, { range: '900+', count: 100 }]
+    },
+    income: {
+      Training: [{ range: '0-50k', count: 250 }, { range: '50k-100k', count: 450 }, { range: '100k+', count: 140 }],
+      'Last Validation': [{ range: '0-50k', count: 280 }, { range: '50k-100k', count: 420 }, { range: '100k+', count: 150 }],
+      Production: [{ range: '0-50k', count: 300 }, { range: '50k-100k', count: 400 }, { range: '100k+', count: 150 }]
+    },
+    debt_ratio: {
+      Training: [{ range: '0-0.2', count: 220 }, { range: '0.2-0.4', count: 280 }, { range: '0.4+', count: 270 }],
+      'Last Validation': [{ range: '0-0.2', count: 210 }, { range: '0.2-0.4', count: 290 }, { range: '0.4+', count: 260 }],
+      Production: [{ range: '0-0.2', count: 200 }, { range: '0.2-0.4', count: 300 }, { range: '0.4+', count: 250 }]
+    },
+    employment_length: {
+      Training: [{ range: '0-5', count: 300 }, { range: '5-10', count: 250 }, { range: '10+', count: 150 }],
+      'Last Validation': [{ range: '0-5', count: 280 }, { range: '5-10', count: 260 }, { range: '10+', count: 160 }],
+      Production: [{ range: '0-5', count: 310 }, { range: '5-10', count: 240 }, { range: '10+', count: 150 }]
     }
+  };
+
+interface Drift {
+  feature: string;
+  driftValue: number;
+  acceptability: string;
+  remarks: string;
+  isSystem: boolean;
+}
+
+const mockDrifts: Drift[] = features.map(feature => ({
+  feature,
+  driftValue: Math.random() * 0.5,
+  acceptability: '',
+  remarks: '',
+  isSystem: true
+}));
+  const [drifts, setDrifts] = useState<Drift[]>(mockDrifts);
+
+  const handleSourceToggle = (source: string) => {
+    setSelectedSources(prev => prev.includes(source) ? prev.filter(s => s !== source) : [...prev, source]);
+    if (source !== 'Production') setSelectedProductionDate('');
+  };
+
+  const handleGenerate = () => {
+    setGenerated(true);
+  };
+
+const updateDrift = (index: number, field: 'feature' | 'acceptability' | 'remarks' | 'driftValue', value: string) => {
+  const newDrifts = [...drifts];
+  if (field === 'driftValue') {
+    newDrifts[index].driftValue = parseFloat(value) || 0;
+  } else {
+    newDrifts[index][field] = value;
+  }
+  setDrifts(newDrifts);
+};
+
+const addDrift = () => {
+  setDrifts([...drifts, { feature: '', driftValue: 0, acceptability: '', remarks: '', isSystem: false }]);
+};
+
+  const getChartData = (feature: string) => {
+    const ranges = mockDistributions[feature].Training.map(d => d.range);
+    return ranges.map(range => {
+      const dataPoint: { range: string; [key: string]: string | number } = { range };
+      selectedSources.forEach(source => {
+        const sourceData = mockDistributions[feature][source];
+        const matching = sourceData.find(d => d.range === range);
+        dataPoint[source] = matching ? matching.count : 0;
+      });
+      return dataPoint;
+    });
   };
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5" />
-            <h2>Data Input & Profiling</h2>
+        <div className="flex items-center gap-2 mb-6">
+          <Database className="w-5 h-5" />
+          <h2>Data Input & Profiling</h2>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <Label>Select Data Sources</Label>
+             <br/><span className="text-muted-foreground text-sm ml-2 text-red-600">*Date automatically fetched for Training & Last Validation.</span>
+            <div className="space-y-2 mt-2"> 
+              {dataSources.map(source => (
+                <div key={source} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedSources.includes(source)}
+                    onCheckedChange={() => handleSourceToggle(source)}
+                  />
+                  <span>{source}</span>
+                  {selectedSources.includes(source) && source !== 'Production' && (
+                    <Input
+                      value={source === 'Training' ? '2023-01-01' : model.lastValidationDate}
+                      disabled
+                      className="w-32 ml-2"
+                    />
+                  )}
+                  {selectedSources.includes(source) && source === 'Production' && (
+                    // <Select value={selectedProductionDate} onValueChange={setSelectedProductionDate}>
+                    //   <SelectTrigger className="w-48 ml-2">
+                    //     <SelectValue placeholder="Select production date" />
+                    //   </SelectTrigger>
+                    //   <SelectContent>
+                    //     {mockPastProductions.map(prod => (
+                    //       <SelectItem key={prod.date} value={prod.date}>{prod.date}</SelectItem>
+                    //     ))}
+                    //   </SelectContent>
+                    // </Select>
+                    <Input
+                      className="w-40 ml-2"
+                      type="date"
+                      value={selectedProductionDate}
+                      onChange={(e) => setSelectedProductionDate(e.target.value)}
+                    />
+                  )}
+                  {/* {selectedSources.includes(source) && <span className="text-muted-foreground text-sm ml-2">Comment : Date automatically fetched for Training/Validation.</span>} */}
+                </div>
+              ))}
+            </div>
           </div>
-          <Button onClick={handleAutoCheck} variant="outline">
-            Run Auto-Check
-          </Button>
-        </div>
-        <p className="text-muted-foreground mb-6">
-          Compare production data to reference/training data, analyze distributions and data quality
-        </p>
 
-        <Tabs defaultValue="quality" className="mb-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="quality">Data Quality</TabsTrigger>
-            <TabsTrigger value="distribution">Distributions</TabsTrigger>
-            <TabsTrigger value="missing">Missing Data</TabsTrigger>
-            <TabsTrigger value="anomalies">Anomalies</TabsTrigger>
-          </TabsList>
+<Button 
+  onClick={handleGenerate} 
+  disabled={selectedSources.length === 0 || (selectedSources.includes('Production') && !selectedProductionDate)}
+>
+  Generate Data Profile
+</Button>
 
-          <TabsContent value="quality" className="space-y-4">
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm">
-                <strong>Data Source:</strong> Production database (Oct 2024) vs Training dataset (Jan-Dec 2023)
-              </p>
-            </div>
+{generated && (
+  <>
+    <p className="text-red-600 mb-4">
+      *Show the data profile as in MMG for each feature/each input. Also Insights of drifts detected (already available in MMG)
+      <br/>
+      Render the most suitable chart type (Line, Bar, or Step) based on the dataset characteristics.
+    </p>
 
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={dataQualityMetrics}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="metric" />
-                <YAxis domain={[90, 100]} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="production" fill="#3b82f6" name="Production" />
-                <Bar dataKey="training" fill="#10b981" name="Training" />
-                <Bar dataKey="threshold" fill="#ef4444" name="Threshold" />
-              </BarChart>
-            </ResponsiveContainer>
+    {/* <div>
+      <Label>Select Features (select/unselect to filter graphs)</Label>
+      <Select multiple value={selectedFeatures} onValueChange={setSelectedFeatures}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select features" />
+        </SelectTrigger>
+        <SelectContent>
+              <SelectItem value="select-all">Select All Features</SelectItem>
+              {features.map(f => (
+                <SelectItem key={f} value={f}>{f}</SelectItem>
+              ))}
+        </SelectContent>
+      </Select>
+    </div> */}
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Metric</TableHead>
-                  <TableHead>Production</TableHead>
-                  <TableHead>Training</TableHead>
-                  <TableHead>Threshold</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {dataQualityMetrics.map((metric) => (
-                  <TableRow key={metric.metric}>
-                    <TableCell>{metric.metric}</TableCell>
-                    <TableCell>{metric.production}%</TableCell>
-                    <TableCell>{metric.training}%</TableCell>
-                    <TableCell>{metric.threshold}%</TableCell>
-                    <TableCell>
-                      {metric.production >= metric.threshold ? (
-                        <Badge className="bg-green-100 text-green-800">Pass</Badge>
-                      ) : (
-                        <Badge className="bg-red-100 text-red-800">Fail</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TabsContent>
-
-          <TabsContent value="distribution" className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Comparing distribution of key variables between production and training data
-            </p>
-
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={distributionData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="range" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="production" fill="#3b82f6" name="Production" />
-                <Bar dataKey="training" fill="#10b981" name="Training" />
-              </BarChart>
-            </ResponsiveContainer>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Production Mean</p>
-                <p className="text-2xl">28.4</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Training Mean</p>
-                <p className="text-2xl">27.8</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Production Std Dev</p>
-                <p className="text-2xl">12.6</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Training Std Dev</p>
-                <p className="text-2xl">12.3</p>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="missing" className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Variable</TableHead>
-                  <TableHead>Missing %</TableHead>
-                  <TableHead>Imputation Strategy</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {missingDataStats.map((stat) => (
-                  <TableRow key={stat.variable}>
-                    <TableCell>{stat.variable}</TableCell>
-                    <TableCell>{stat.missing}%</TableCell>
-                    <TableCell>{stat.action}</TableCell>
-                    <TableCell>
-                      {stat.missing < 5 ? (
-                        <Badge className="bg-green-100 text-green-800">Acceptable</Badge>
-                      ) : (
-                        <Badge className="bg-yellow-100 text-yellow-800">Review</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TabsContent>
-
-          <TabsContent value="anomalies" className="space-y-4">
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                <h4>Detected Anomalies</h4>
-              </div>
-              <div className="space-y-3">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="text-sm">Outliers detected in debt_ratio variable</p>
-                  <p className="text-xs text-muted-foreground mt-1">142 records (0.8%) with values {'>'}3 std deviations</p>
+              {selectedFeatures.map(feature => (
+                <div key={feature} className="mb-8">
+                  <h4 className="mb-4">{feature} Distribution Comparison</h4>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={getChartData(feature)}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="range" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      {selectedSources.map((source, idx) => (
+                        <Bar key={source} dataKey={source} fill={['#8884d8', '#82ca9d', '#ffc658'][idx % 3]} />
+                      ))}
+                    </BarChart>
+                    <span className="text-muted-foreground text-sm ml-2 text-red-600">*Requirement: Interactive chart - can select or deselect entities in the chart legend to customize the view. </span><br/>
+                    <br/>
+                  </ResponsiveContainer>
                 </div>
-                <div className="p-3 bg-green-50 border border-green-200 rounded">
-                  <p className="text-sm">No anomalies in credit_score distribution</p>
-                </div>
-                <div className="p-3 bg-green-50 border border-green-200 rounded">
-                  <p className="text-sm">Income distribution within expected range</p>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+              ))}
 
-        {/* Comments Section */}
-        <div className="mb-6">
-          <label className="block mb-2">Validator Notes & Comments</label>
-          <Textarea
-            placeholder="Document any observations, concerns, or additional context about the data..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
+              <div>
+                <h3 className="mb-4">Detected Drifts</h3>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+                <Button onClick={addDrift} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
+                  Add Drift +
+                </Button>
+              </div>
+              
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Feature</TableHead>
+                      <TableHead>Drift Value</TableHead>
+                      <TableHead>Acceptable/Not Acceptable/NA <span className="text-red-500">*</span></TableHead>
+                      <TableHead>Remarks</TableHead>
+                    </TableRow>
+                  </TableHeader>
+<TableBody>
+  {drifts.map((drift, index) => (
+    <TableRow key={index}>
+      <TableCell>
+        {drift.isSystem ? (
+          drift.feature
+        ) : (
+          <Select value={drift.feature} onValueChange={value => updateDrift(index, 'feature', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a feature" />
+            </SelectTrigger>
+            <SelectContent>
+           
+                <SelectItem key="Other" value="Other">Other Feature</SelectItem>
+         
+            </SelectContent>
+          </Select>
+        )}
+      </TableCell>
+      <TableCell>
+        {drift.isSystem ? (
+          drift.driftValue.toFixed(2)
+        ) : (
+          <Input 
+            type="number"
+            value={drift.driftValue.toFixed(2)} 
+            onChange={e => updateDrift(index, 'driftValue', e.target.value)} 
           />
+        )}
+      </TableCell>
+      <TableCell>
+        <Select value={drift.acceptability} onValueChange={value => updateDrift(index, 'acceptability', value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Acceptable">Acceptable</SelectItem>
+            <SelectItem value="Not Acceptable">Not Acceptable</SelectItem>
+            <SelectItem value="NA">NA</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Input 
+          value={drift.remarks} 
+          onChange={e => updateDrift(index, 'remarks', e.target.value)} 
+          placeholder="Remarks" 
+        />
+      </TableCell>
+    </TableRow>
+  ))}
+</TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={() => {
-            onAddFinding({
-              category: 'Data Quality',
-              severity: 'Low',
-              description: 'Minor data quality observation',
-              recommendation: 'Monitor in ongoing validation',
-              status: 'Open',
-              dateIdentified: new Date().toISOString()
-            });
-          }}>
-            Log Finding
+
+<div className="mb-6">
+  <Label htmlFor="validator-notes">Validator Overall Step Comment</Label>
+  <Textarea
+    id="validator-notes"
+    placeholder="Input overall comments here for this step.."
+    rows={4}
+    className="mt-2"
+  />
+</div>
+
+
+        {/* Evidence Upload */}
+        <div className="mb-6">
+          <Label>Supporting Evidence</Label>
+          <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm text-muted-foreground mb-1">Upload documentation</p>
+            <p className="text-xs text-muted-foreground">Model design docs, methodology papers, regulatory mappings</p>
+            <Input type="file" className="hidden" multiple />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button
+            style={{
+      backgroundColor: "red", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+            // className="bg-red-500 hover:bg-red-600 text-white"
+            onClick={() => {
+              // Cancel functionality - could reset state or go back
+              if (onCancel) onCancel();
+            }}
+          >
+            Cancel
           </Button>
-          <Button onClick={onComplete}>
-            Complete Step
+          <Button
+          style={{
+      backgroundColor: "#3b82f6", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+            // className="bg-blue-500 hover:bg-blue-600 text-white"
+            onClick={() => {
+              // Save functionality - save current progress
+              if (onSave) onSave();
+            }}
+          >
+            Save
+          </Button>
+          <Button
+          style={{
+      backgroundColor: "green", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+            // className="bg-green-500 hover:bg-green-600 text-white"
+            onClick={() => {
+              // Save and continue to next step
+              if (onSaveAndContinue) onSaveAndContinue();
+            }}
+          >
+            Save and Continue
           </Button>
         </div>
       </Card>

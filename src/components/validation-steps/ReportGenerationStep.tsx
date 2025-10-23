@@ -184,33 +184,97 @@ export function ReportGenerationStep({ model, findings, steps, onComplete }: Rep
               </div>
             </div>
 
-            {findings.length > 0 && (
-              <div className="space-y-2">
-                {findings.slice(0, 3).map((finding) => (
-                  <div key={finding.id} className="p-3 border rounded">
-                    <div className="flex items-start justify-between mb-2">
-                      <Badge className={
-                        finding.severity === 'Critical' || finding.severity === 'High'
-                          ? 'bg-red-100 text-red-800'
-                          : finding.severity === 'Medium'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-blue-100 text-blue-800'
-                      }>
-                        {finding.severity}
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">{finding.category}</span>
-                    </div>
-                    <p className="text-sm">{finding.description}</p>
-                  </div>
-                ))}
-                {findings.length > 3 && (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    + {findings.length - 3} more findings in full report
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+</div>
+{/* ===========================
+    TRACKED OBSERVATIONS TABLE
+=========================== */}
+<div className="mb-10">
+  <h4 className="mb-3">Tracked Observations</h4>
+
+  {findings.filter(f => f.trackAsObservation).length > 0 ? (
+    <div className="border rounded-lg overflow-hidden">
+      <table className="w-full border-collapse text-sm">
+        <thead className="bg-gray-50 border-b">
+          <tr>
+            <th className="px-4 py-2 text-left">ID</th>
+            <th className="px-4 py-2 text-left">Step</th>
+            <th className="px-4 py-2 text-left">Category</th>
+            <th className="px-4 py-2 text-left">Description</th>
+            <th className="px-4 py-2 text-left">Validator Remarks</th>
+            <th className="px-4 py-2 text-left">Status</th>
+            <th className="px-4 py-2 text-left">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {findings.filter(f => f.trackAsObservation).map((finding) => (
+            <tr key={finding.id} className="border-b hover:bg-gray-50">
+              <td className="px-4 py-2">{finding.id}</td>
+              <td className="px-4 py-2">{finding.step || '-'}</td>
+              <td className="px-4 py-2">{finding.category}</td>
+              <td className="px-4 py-2">{finding.description}</td>
+              <td className="px-4 py-2">{finding.recommendation}</td>
+              <td className="px-4 py-2">{finding.status}</td>
+              <td className="px-4 py-2">{new Date(finding.dateIdentified).toLocaleDateString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    // Dummy placeholder if no tracked ones yet
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <p className="text-sm text-muted-foreground mb-2">
+        (Tracked observations from findings.)
+      </p>
+      <table className="w-full text-sm">
+        <thead className="bg-gray-100 border-b">
+          <tr>
+            <th className="px-4 py-2 text-left">ID</th>
+            <th className="px-4 py-2 text-left">Step</th>
+            <th className="px-4 py-2 text-left">Category</th>
+            <th className="px-4 py-2 text-left">Description</th>
+            <th className="px-4 py-2 text-left">Validator Remarks</th>
+            <th className="px-4 py-2 text-left">Status</th>
+            <th className="px-4 py-2 text-left">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            {
+              id: 'T-001',
+              step: 'Drift Analysis',
+              category: 'Data Drift',
+              description: 'Feature “loan_amount” showing moderate shift vs last validation',
+              recommendation: 'Monitor in next cycle; drift within control limits.',
+              status: 'Acceptable',
+              date: '2025-10-10'
+            },
+            {
+              id: 'T-002',
+              step: 'Outcome Analysis',
+              category: 'Performance Stability',
+              description: 'Slight AUC decline in production; needs follow-up analysis.',
+              recommendation: 'Include in next validation checkpoint.',
+              status: 'Non-Acceptable',
+              date: '2025-10-12'
+            }
+          ].map((dummy) => (
+            <tr key={dummy.id} className="border-b hover:bg-gray-50">
+              <td className="px-4 py-2">{dummy.id}</td>
+              <td className="px-4 py-2">{dummy.step}</td>
+              <td className="px-4 py-2">{dummy.category}</td>
+              <td className="px-4 py-2">{dummy.description}</td>
+              <td className="px-4 py-2">{dummy.recommendation}</td>
+              <td className="px-4 py-2">{dummy.status}</td>
+              <td className="px-4 py-2">{dummy.date}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</div>
+
 
           <Separator className="my-6" />
 
@@ -260,7 +324,9 @@ export function ReportGenerationStep({ model, findings, steps, onComplete }: Rep
             {isSubmitted ? 'Report Submitted' : 'Submit for Approval'}
           </Button>
         </div>
-
+        <p className="text-red-600 mb-4">
+      Note: The Download PDF Report button should generate a PDF that includes all recorded observations, findings, and comments from every step of the process.
+    </p>
         {!allStepsCompleted && (
           <p className="text-sm text-muted-foreground mt-4 text-right">
             Complete all validation steps to enable report submission

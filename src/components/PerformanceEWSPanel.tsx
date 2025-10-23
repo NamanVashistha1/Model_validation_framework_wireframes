@@ -1,6 +1,9 @@
 import { RedwoodModel } from '../types/redwood';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingDown, AlertTriangle, Activity } from 'lucide-react';
+import { useState } from 'react';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface PerformanceEWSPanelProps {
   models: RedwoodModel[];
@@ -33,6 +36,8 @@ export function PerformanceEWSPanel({ models }: PerformanceEWSPanelProps) {
   const degradedModels = models.filter(m => 
     m.monitoringAlerts && m.monitoringAlerts.some(a => a.type === 'performance')
   );
+
+  const [selectedMetrics, setSelectedMetrics] = useState(['gini', 'auc', 'psi']);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
@@ -74,16 +79,29 @@ export function PerformanceEWSPanel({ models }: PerformanceEWSPanelProps) {
       {/* Performance Trends Chart */}
       <div className="mb-6">
         <h4 className="text-[#1A1816] mb-4">Average Performance Metrics Trend</h4>
+        <div className="mb-4">
+          <Label>Select Metrics to Display</Label>
+          <Select multiple value={selectedMetrics} onValueChange={setSelectedMetrics}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select metrics" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gini">Gini</SelectItem>
+              <SelectItem value="auc">AUC</SelectItem>
+              <SelectItem value="psi">PSI</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={performanceTrends}>
             <CartesianGrid strokeDasharray="3 3" stroke="#E0E1E3" />
-            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} domain={[0, 1]} />
+            <XAxis dataKey="month" tick={{ fontSize: 12 }} label={{ value: 'Month', position: 'bottom' }} />
+            <YAxis tick={{ fontSize: 12 }} domain={[0, 1]} label={{ value: 'Value', angle: -90, position: 'insideLeft' }} />
             <Tooltip formatter={(value: number) => value.toFixed(3)} />
             <Legend />
-            <Line type="monotone" dataKey="gini" stroke="#0067b8" name="Avg Gini" strokeWidth={2} />
-            <Line type="monotone" dataKey="auc" stroke="#25A900" name="Avg AUC" strokeWidth={2} />
-            <Line type="monotone" dataKey="psi" stroke="#FF9B21" name="Avg PSI" strokeWidth={2} />
+            {selectedMetrics.includes('gini') && <Line type="monotone" dataKey="gini" stroke="#0067b8" name="Avg Gini" strokeWidth={2} />}
+            {selectedMetrics.includes('auc') && <Line type="monotone" dataKey="auc" stroke="#25A900" name="Avg AUC" strokeWidth={2} />}
+            {selectedMetrics.includes('psi') && <Line type="monotone" dataKey="psi" stroke="#FF9B21" name="Avg PSI" strokeWidth={2} />}
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Textarea } from '../ui/textarea';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface FeatureStabilityStepProps {
   model: Model;
@@ -25,6 +27,15 @@ const psiTrendData = [
   { month: 'Sep', psi: 0.28 }
 ];
 
+const csiTrendData = [
+  { month: 'Apr', csi: 0.05 },
+  { month: 'May', csi: 0.08 },
+  { month: 'Jun', csi: 0.11 },
+  { month: 'Jul', csi: 0.14 },
+  { month: 'Aug', csi: 0.18 },
+  { month: 'Sep', csi: 0.22 }
+];
+
 // Mock feature stability metrics
 const featureMetrics = [
   { feature: 'credit_score', psi: 0.08, csi: 0.05, iv: 2.45, status: 'stable' },
@@ -34,8 +45,17 @@ const featureMetrics = [
   { feature: 'annual_income', psi: 0.19, csi: 0.14, iv: 2.12, status: 'warning' }
 ];
 
+const featureImportance = featureMetrics.map(f => ({
+  name: f.feature,
+  training: f.iv * 0.9,
+  lastValidation: f.iv * 0.95,
+  production: f.iv
+}));
+
 export function FeatureStabilityStep({ model, onComplete, onAddFinding }: FeatureStabilityStepProps) {
   const [notes, setNotes] = useState('');
+  const [selectedTrendTechnique, setSelectedTrendTechnique] = useState('PSI');
+  const [selectedImportanceSources, setSelectedImportanceSources] = useState(['training', 'lastValidation', 'production']);
   const driftDetected = featureMetrics.some(f => f.status === 'drift');
 
   const getPSIStatus = (psi: number) => {
@@ -43,6 +63,9 @@ export function FeatureStabilityStep({ model, onComplete, onAddFinding }: Featur
     if (psi < 0.25) return { label: 'Warning', color: 'bg-yellow-100 text-yellow-800' };
     return { label: 'Drift', color: 'bg-red-100 text-red-800' };
   };
+
+  const trendData = selectedTrendTechnique === 'PSI' ? psiTrendData : csiTrendData;
+  const dataKey = selectedTrendTechnique.toLowerCase();
 
   return (
     <div className="space-y-6">
@@ -66,28 +89,40 @@ export function FeatureStabilityStep({ model, onComplete, onAddFinding }: Featur
 
         {/* PSI Trend */}
         <div className="mb-6">
-          <h3 className="mb-4">Population Stability Index (PSI) Trend</h3>
+          <div className="mb-4">
+            <Label>Select Trend Technique</Label>
+            <Select value={selectedTrendTechnique} onValueChange={setSelectedTrendTechnique}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PSI">PSI</SelectItem>
+                <SelectItem value="CSI">CSI</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <h3 className="mb-4">{selectedTrendTechnique} Trend</h3>
           <div className="p-4 bg-gray-50 rounded-lg mb-4">
             <div className="flex justify-between text-sm">
-              <span>Threshold Guidelines:</span>
+              <span>Threshold Guidelines for {selectedTrendTechnique}:</span>
               <div className="flex gap-4">
-                <span className="text-green-600">{'<'} 0.10: Stable</span>
-                <span className="text-yellow-600">0.10 - 0.25: Monitor</span>
-                <span className="text-red-600">{'>'} 0.25: Significant Drift</span>
+                <span className="text-green-600">{'<'} {selectedTrendTechnique === 'PSI' ? '0.10' : '0.1'}: Stable</span>
+                <span className="text-yellow-600">{selectedTrendTechnique === 'PSI' ? '0.10 - 0.25' : '0.1 - 0.2'}: Monitor</span>
+                <span className="text-red-600">{'>'} {selectedTrendTechnique === 'PSI' ? '0.25' : '0.2'}: Significant Drift</span>
               </div>
             </div>
           </div>
           
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={psiTrendData}>
+            <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis domain={[0, 0.3]} />
+              <XAxis dataKey="month" label={{ value: 'Month', position: 'bottom' }} />
+              <YAxis domain={[0, 0.3]} label={{ value: 'Index Value', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="psi" stroke="#3b82f6" strokeWidth={2} name="PSI" />
-              <Line type="monotone" dataKey={(v) => 0.1} stroke="#22c55e" strokeDasharray="5 5" name="Stable Threshold" />
-              <Line type="monotone" dataKey={(v) => 0.25} stroke="#ef4444" strokeDasharray="5 5" name="Drift Threshold" />
+              <Line type="monotone" dataKey={dataKey} stroke="#3b82f6" strokeWidth={2} name={selectedTrendTechnique} />
+              <Line type="monotone" dataKey={(v) => selectedTrendTechnique === 'PSI' ? 0.1 : 0.1} stroke="#22c55e" strokeDasharray="5 5" name="Stable Threshold" />
+              <Line type="monotone" dataKey={(v) => selectedTrendTechnique === 'PSI' ? 0.25 : 0.2} stroke="#ef4444" strokeDasharray="5 5" name="Drift Threshold" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -143,20 +178,30 @@ export function FeatureStabilityStep({ model, onComplete, onAddFinding }: Featur
 
         {/* Feature Importance Comparison */}
         <div className="mb-6">
+          <div className="mb-4">
+            <Label>Select Data Sources</Label>
+            <Select multiple value={selectedImportanceSources} onValueChange={setSelectedImportanceSources}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="training">Training</SelectItem>
+                <SelectItem value="lastValidation">Last Validation</SelectItem>
+                <SelectItem value="production">Production</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <h3 className="mb-4">Feature Importance Comparison</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={featureMetrics.map(f => ({ 
-              name: f.feature, 
-              current: f.iv,
-              baseline: f.iv * (0.9 + Math.random() * 0.2)
-            }))}>
+            <BarChart data={featureImportance}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-              <YAxis />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} label={{ value: 'Features', position: 'bottom', offset: 40 }} />
+              <YAxis label={{ value: 'Information Value', angle: -90, position: 'insideLeft' }} />
               <Tooltip />
               <Legend />
-              <Bar dataKey="baseline" fill="#94a3b8" name="Baseline IV" />
-              <Bar dataKey="current" fill="#3b82f6" name="Current IV" />
+              {selectedImportanceSources.includes('training') && <Bar dataKey="training" fill="#10b981" name="Training" />}
+              {selectedImportanceSources.includes('lastValidation') && <Bar dataKey="lastValidation" fill="#f59e0b" name="Last Validation" />}
+              {selectedImportanceSources.includes('production') && <Bar dataKey="production" fill="#3b82f6" name="Production" />}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -176,7 +221,7 @@ export function FeatureStabilityStep({ model, onComplete, onAddFinding }: Featur
           <Button variant="outline" onClick={() => {
             if (driftDetected) {
               onAddFinding({
-                category: 'Feature Stability',
+                category: 'Sensitivity Analysis',
                 severity: 'High',
                 description: 'Significant feature drift detected in employment_length (PSI: 0.28)',
                 recommendation: 'Investigate cause of drift and consider model recalibration',

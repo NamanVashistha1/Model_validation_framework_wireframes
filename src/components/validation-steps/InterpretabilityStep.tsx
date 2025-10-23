@@ -2,246 +2,439 @@ import { useState } from 'react';
 import { Model, Finding } from '../../types/model';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import { Brain, Eye } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Badge } from '../ui/badge';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Brain } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { FileText, Upload } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
 
 interface InterpretabilityStepProps {
   model: Model;
   onComplete: () => void;
   onAddFinding: (finding: Omit<Finding, 'id'>) => void;
+  onSave?: () => void;
+  onSaveAndContinue?: () => void;
+  onCancel?: () => void;
 }
 
-// Mock SHAP values
-const shapValues = [
-  { feature: 'credit_score', importance: 0.35, direction: 'positive' },
-  { feature: 'debt_to_income', importance: 0.28, direction: 'negative' },
-  { feature: 'employment_length', importance: 0.18, direction: 'positive' },
-  { feature: 'loan_amount', importance: 0.12, direction: 'negative' },
-  { feature: 'annual_income', importance: 0.07, direction: 'positive' }
-];
-
-// Mock feature importance comparison
+// Mocked Feature Importance Data
 const featureImportance = [
-  { feature: 'credit_score', current: 0.35, baseline: 0.38 },
-  { feature: 'debt_to_income', current: 0.28, baseline: 0.25 },
-  { feature: 'employment_length', current: 0.18, baseline: 0.20 },
-  { feature: 'loan_amount', current: 0.12, baseline: 0.10 },
-  { feature: 'annual_income', current: 0.07, baseline: 0.07 }
+  { feature: 'credit_score', training: 0.38, lastValidation: 0.36, production: 0.35 },
+  { feature: 'debt_to_income', training: 0.25, lastValidation: 0.27, production: 0.28 },
+  { feature: 'employment_length', training: 0.20, lastValidation: 0.19, production: 0.18 },
+  { feature: 'loan_amount', training: 0.10, lastValidation: 0.11, production: 0.12 },
+  { feature: 'annual_income', training: 0.07, lastValidation: 0.07, production: 0.07 }
 ];
 
-export function InterpretabilityStep({ model, onComplete, onAddFinding }: InterpretabilityStepProps) {
+// List of techniques
+const explainabilityTechniques = [
+  'SHAP',
+  'LIME',
+  'Permutation Feature Importance',
+  'Partial Dependence Plots',
+  'Integrated Gradients',
+  'Counterfactual Explanations',
+  'Feature Ablation'
+];
+
+// Feature list
+const availableFeatures = [
+  'credit_score',
+  'debt_to_income',
+  'employment_length',
+  'loan_amount',
+  'annual_income'
+];
+
+export function InterpretabilityStep({ model, onComplete, onAddFinding, onSave, onSaveAndContinue, onCancel }: InterpretabilityStepProps) {
+  const [selectedSources, setSelectedSources] = useState<string[]>(['Production']); // Production preselected
+  const [prodStartDate, setProdStartDate] = useState('2024-09-01');
+  const [prodEndDate, setProdEndDate] = useState('2024-09-30');
+  const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
+  const [showGraphs, setShowGraphs] = useState(false);
+
+  interface Observation {
+    feature: string;
+    change: string;
+    acceptability: string;
+    remarks: string;
+  }
+
+  const [observations, setObservations] = useState<Observation[]>([
+    { feature: 'credit_score', change: '-7.9%', acceptability: '', remarks: '' },
+    { feature: 'debt_to_income', change: '+12.0%', acceptability: '', remarks: '' },
+  ]);
+
+  const handleGenerate = () => {
+    setShowGraphs(true);
+  };
+
+  const addObservationRow = () => {
+    setObservations([...observations, { feature: '', change: '', acceptability: '', remarks: '' }]);
+  };
+
+  const updateObservation = (index: number, field: keyof Observation, value: string) => {
+    const updated = [...observations];
+    updated[index][field] = value;
+    setObservations(updated);
+  };
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Brain className="w-5 h-5" />
+          <Brain className="w-5 h-5 text-blue-600" />
           <h2>Interpretability & Explainability</h2>
         </div>
+
         <p className="text-muted-foreground mb-6">
-          Model explainability using SHAP values, feature importance, and interpretability metrics
+          Review interpretability metrics, explainability techniques, and feature importance behavior across data sources.
         </p>
 
-        <Tabs defaultValue="shap" className="mb-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="shap">SHAP Analysis</TabsTrigger>
-            <TabsTrigger value="importance">Feature Importance</TabsTrigger>
-            <TabsTrigger value="monitoring">Ongoing Monitoring</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="shap" className="space-y-6">
-            <div>
-              <h3 className="mb-4">Global Feature Importance (SHAP Values)</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Average absolute SHAP values showing global feature impact on model predictions
-              </p>
-              
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={shapValues} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" domain={[0, 0.4]} />
-                  <YAxis dataKey="feature" type="category" width={150} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="importance" fill="#3b82f6" name="SHAP Value" />
-                </BarChart>
-              </ResponsiveContainer>
-
-              <div className="mt-6 grid grid-cols-1 gap-3">
-                {shapValues.map((feature) => (
-                  <div key={feature.feature} className="p-3 border rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <span>{feature.feature}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm text-muted-foreground">
-                          Impact: {(feature.importance * 100).toFixed(1)}%
-                        </span>
-                        <Badge className={
-                          feature.direction === 'positive' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }>
-                          {feature.direction === 'positive' ? '↑ Increases Score' : '↓ Decreases Score'}
-                        </Badge>
-                      </div>
+        {/* ---------------- Data Source Selection ---------------- */}
+        <div className="mb-4">
+          <Label>Select Data Sources</Label>
+          <div className="space-y-2 mt-2">
+            {['Training', 'Last Validation', 'Production'].map(source => (
+              <div key={source} className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedSources.includes(source)}
+                  onCheckedChange={() => {
+                    setSelectedSources(prev => prev.includes(source) ? prev.filter(s => s !== source) : [...prev, source]);
+                  }}
+                />
+                <span>{source}</span>
+                {selectedSources.includes(source) && source !== 'Production' && (
+                  <Input
+                    value={source === 'Training' ? '2023-01-01' : model.lastValidationDate}
+                    disabled
+                    className="w-32 ml-2"
+                  />
+                )}
+                {selectedSources.includes(source) && source === 'Production' && (
+                  <div className="grid grid-cols-2 gap-4 ml-4">
+                    <div>
+                      <Label>Production Start Date (auto-fetched from Outcome Analysis)</Label>
+                      <Input
+                        className="w-40"
+                        type="date"
+                        value={prodStartDate}
+                        onChange={(e) => setProdStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Production End Date (auto-fetched from Outcome Analysis)</Label>
+                      <Input
+                        className="w-40"
+                        type="date"
+                        value={prodEndDate}
+                        onChange={(e) => setProdEndDate(e.target.value)}
+                      />
                     </div>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
+            ))}
+          </div>
+        </div>
 
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="mb-2">Interpretation Summary</h4>
-              <ul className="text-sm space-y-1 list-disc list-inside">
-                <li>credit_score is the strongest predictor (35% of model decisions)</li>
-                <li>debt_to_income ratio shows expected negative relationship</li>
-                <li>Feature interactions are minimal and well-understood</li>
-                <li>No unexpected or unexplainable patterns detected</li>
-              </ul>
-            </div>
-          </TabsContent>
+        {/* ---------------- Technique Selection ---------------- */}
+        <div className="mb-4">
+          <Label>Select Explainability Techniques</Label>
+          <Select
+            onValueChange={(value) => {
+              if (value === 'select-all') {
+                setSelectedTechniques(explainabilityTechniques);
+              } else {
+                setSelectedTechniques((prev) =>
+                  prev.includes(value)
+                    ? prev.filter((t) => t !== value)
+                    : [...prev, value]
+                );
+              }
+            }}
+          >
+            <SelectTrigger className="min-h-[40px]">
+              <SelectValue>
+                {selectedTechniques.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTechniques.map((t) => (
+                      <span key={t} className="bg-muted text-sm px-2 py-0.5 rounded-md border">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Select techniques</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="select-all">Select All Techniques</SelectItem>
+              {explainabilityTechniques.map((tech) => (
+                <SelectItem key={tech} value={tech}>
+                  {tech}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <TabsContent value="importance" className="space-y-6">
-            <div>
-              <h3 className="mb-4">Feature Importance Stability</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Comparing current feature importance with baseline (development) values
-              </p>
+          <span className="text-muted-foreground text-sm ml-2 text-red-600">
+            *System Recommendation: <br />
+            <span className="ml-4 text-muted-foreground">
+              • SHAP – used during model approval. <br />
+              • LIME – used during last validation. <br />
+              • Counterfactual Explanations – generally recommended for this model type.
+            </span>
+          </span>
+        </div>
 
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={featureImportance}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="feature" angle={-45} textAnchor="end" height={100} />
-                  <YAxis domain={[0, 0.4]} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="baseline" fill="#94a3b8" name="Baseline (Development)" />
-                  <Bar dataKey="current" fill="#3b82f6" name="Current (Production)" />
-                </BarChart>
-              </ResponsiveContainer>
+        {/* ---------------- Feature Selection ---------------- */}
+        <div className="mb-4">
+          <Label>Select Features</Label>
+          <Select
+            onValueChange={(value) => {
+              if (value === 'select-all') {
+                setSelectedFeatures(availableFeatures);
+              } else {
+                setSelectedFeatures((prev) =>
+                  prev.includes(value)
+                    ? prev.filter((f) => f !== value)
+                    : [...prev, value]
+                );
+              }
+            }}
+          >
+            <SelectTrigger className="min-h-[40px]">
+              <SelectValue>
+                {selectedFeatures.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFeatures.map((f) => (
+                      <span key={f} className="bg-muted text-sm px-2 py-0.5 rounded-md border">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">Select features</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="select-all">Select All Features</SelectItem>
+              {availableFeatures.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="mb-3">Importance Shifts</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>credit_score:</span>
-                    <span className="text-red-600">-7.9% (0.38 → 0.35)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>debt_to_income:</span>
-                    <span className="text-green-600">+12.0% (0.25 → 0.28)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>employment_length:</span>
-                    <span className="text-red-600">-10.0% (0.20 → 0.18)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>loan_amount:</span>
-                    <span className="text-green-600">+20.0% (0.10 → 0.12)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>annual_income:</span>
-                    <span className="text-gray-600">No change (0.07)</span>
-                  </div>
-                </div>
+        {/* ---------------- Generate ---------------- */}
+        <Button
+          onClick={handleGenerate}
+          disabled={
+            selectedSources.length === 0 ||
+            selectedTechniques.length === 0 ||
+            selectedFeatures.length === 0
+          }
+        >
+          Generate
+        </Button>
+
+        {/* ---------------- Charts ---------------- */}
+        {showGraphs && (
+          <div className="mt-8">
+            <h3 className="mb-2">Feature Importance Comparison  {" "}
+  <span className="text-muted-foreground text-sm text-red-600">
+    (Below is an example graph. Generate graphs for each selected Feature vs Technique)
+    <br/>
+    Render the most suitable chart type (Line, Bar, or Step) based on the comparison.
+  </span></h3>
+<span className="text-muted-foreground text-sm text-red-600">
+              *Requirement: Interactive charts – can select/deselect entities in the legend to customize the view.
+            </span><br/>
+           
+
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={featureImportance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="feature" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {selectedSources.includes('Training') && (
+                  <Bar dataKey="training" fill="#10b981" name="Training" />
+                )}
+                {selectedSources.includes('Last Validation') && (
+                  <Bar dataKey="lastValidation" fill="#f59e0b" name="Last Validation" />
+                )}
+                {selectedSources.includes('Production') && (
+                  <Bar dataKey="production" fill="#3b82f6" name="Production" />
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+            
+            {/* ---------------- Observation Table ---------------- */}
+            <div className="mt-6">
+              <h4 className="mb-3">Observation Table</h4>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+                <Button onClick={addObservationRow} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
+                  Add Observation +
+                </Button>
               </div>
+              <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Feature</TableHead>
+                      <TableHead>Change %</TableHead>
+                      <TableHead>Acceptable / Not Acceptable / NA <span className="text-red-500">*</span></TableHead>
+                      <TableHead>Remarks</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                <TableBody>
+                  {observations.map((obs, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={obs.feature}
+                          onChange={(e) => updateObservation(index, 'feature', e.target.value)}
+                          className="border rounded p-1 w-full"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={obs.change}
+                          onChange={(e) => updateObservation(index, 'change', e.target.value)}
+                          className="border rounded p-1 w-full"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={obs.acceptability}
+                          onValueChange={(val) => updateObservation(index, 'acceptability', val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Acceptable">Acceptable</SelectItem>
+                            <SelectItem value="Not Acceptable">Not Acceptable</SelectItem>
+                            <SelectItem value="NA">NA</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={obs.remarks}
+                          onChange={(e) => updateObservation(index, 'remarks', e.target.value)}
+                          className="border rounded p-1 w-full"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {/* <Button onClick={addObservationRow} variant="outline" className="mt-4">
+                Add Observation
+              </Button> */}
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          <TabsContent value="monitoring" className="space-y-6">
-            <div>
-              <h3 className="mb-4">Interpretability Monitoring Dashboard</h3>
-              
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="p-4 bg-white border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Eye className="w-4 h-4 text-blue-600" />
-                    <p className="text-sm text-muted-foreground">Model Transparency Score</p>
-                  </div>
-                  <p className="text-3xl">8.5/10</p>
-                  <Badge className="mt-2 bg-green-100 text-green-800">High</Badge>
-                </div>
 
-                <div className="p-4 bg-white border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Brain className="w-4 h-4 text-purple-600" />
-                    <p className="text-sm text-muted-foreground">Explainability Coverage</p>
-                  </div>
-                  <p className="text-3xl">94%</p>
-                  <Badge className="mt-2 bg-green-100 text-green-800">Excellent</Badge>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-4 border rounded-lg">
-                  <h4 className="mb-2">Prediction Explanations</h4>
-                  <p className="text-sm text-muted-foreground">
-                    94% of predictions can be explained within 2 standard deviations of SHAP values
-                  </p>
-                </div>
-
-                <div className="p-4 border rounded-lg">
-                  <h4 className="mb-2">Feature Contribution Consistency</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Feature contributions remain consistent across different population segments
-                  </p>
-                </div>
-
-                <div className="p-4 border rounded-lg">
-                  <h4 className="mb-2">Decision Boundary Clarity</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Clear separation between approval and rejection zones with minimal ambiguity
-                  </p>
-                </div>
-
-                <div className="p-4 border rounded-lg">
-                  <h4 className="mb-2">Counterfactual Analysis</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Average of 2.3 feature changes required to flip prediction outcome
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="mb-2">Monitoring Alerts</h4>
-              <p className="text-sm">
-                ⚠ debt_to_income feature importance increased by 12% - Monitor for potential overfitting
-              </p>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Validator Notes */}
-        <div className="mb-6">
-          <label className="block mb-2">Interpretability Assessment Notes</label>
+        {/* ---------------- Remarks ---------------- */}
+        <div className="mt-6">
+          <Label>Validator Remarks / Interpretability Assessment Notes</Label>
           <Textarea
-            placeholder="Document observations about model explainability, feature importance shifts, and interpretability concerns..."
+            placeholder="Document interpretability observations, findings, and validation remarks..."
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
           />
         </div>
+        
 
-        <div className="flex justify-end gap-3">
-          <Button variant="outline" onClick={() => {
-            onAddFinding({
-              category: 'Interpretability',
-              severity: 'Low',
-              description: 'Feature importance shift detected in debt_to_income (+12%)',
-              recommendation: 'Continue monitoring for stability',
-              status: 'Open',
-              dateIdentified: new Date().toISOString()
-            });
-          }}>
-            Log Finding
+        {/* Evidence Upload */}
+        <div className="mb-6">
+          <Label>Supporting Evidence</Label>
+          <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+            <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm text-muted-foreground mb-1">Upload documentation</p>
+            <p className="text-xs text-muted-foreground">Model design docs, methodology papers, regulatory mappings</p>
+            <Input type="file" className="hidden" multiple />
+          </div>
+        </div>
+
+
+        <div className="flex justify-end gap-3 mt-6">
+          <Button
+          style={{
+      backgroundColor: "red", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+         
+            onClick={() => {
+              // Cancel functionality - could reset state or go back
+              if (onCancel) onCancel();
+            }}
+          >
+            Cancel
           </Button>
-          <Button onClick={onComplete}>
-            Complete Step
+          <Button
+            style={{
+      backgroundColor: "#3b82f6", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+            onClick={() => {
+              // Save functionality - save current progress
+              if (onSave) onSave();
+            }}
+          >
+            Save
+          </Button>
+          <Button
+            style={{
+      backgroundColor: "green", // blue-500
+      color: "white",
+      fontSize: "14px",
+      fontWeight: 500,
+      padding: "8px 16px",
+      borderRadius: "6px",
+      border: "none",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    }}
+            onClick={() => {
+              // Save and continue to next step
+              if (onSaveAndContinue) onSaveAndContinue();
+            }}
+          >
+            Save and Continue
           </Button>
         </div>
       </Card>
