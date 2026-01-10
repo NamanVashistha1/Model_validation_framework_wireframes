@@ -3,7 +3,7 @@ import { ModelInventoryDashboard } from './components/ModelInventoryDashboard';
 import { ModelOverview } from './components/ModelOverview';
 import { ValidationWorkbench } from './components/ValidationWorkbench';
 import { RedwoodAppShell } from './components/RedwoodAppShell';
-import { RedwoodDashboard } from './components/RedwoodDashboard';
+import { ModelRiskDashboard } from './components/ModelRiskDashboard';
 import { RedwoodModelInventory } from './components/RedwoodModelInventory';
 import { RedwoodIssuesTracker } from './components/RedwoodIssuesTracker';
 import { RedwoodAuditHistory } from './components/RedwoodAuditHistory';
@@ -51,12 +51,20 @@ export default function App() {
     const newModel: RedwoodModel = {
       id: modelData.id || `MDL-${Date.now()}`,
       name: modelData.name || '',
-      description: modelData.description,
+      description: modelData.description || '',
       owner: modelData.owner || '',
+      department: modelData.department || '',
+      lineOfBusiness: modelData.lineOfBusiness || '',
+      lifecycleStage: modelData.lifecycleStage || 'Development',
+      riskTier: modelData.riskTier || 'Medium',
       usageFrequency: modelData.usageFrequency || 'Daily',
       monitoringCycle: modelData.monitoringCycle || 'Daily',
       registeredDate: modelData.registeredDate || new Date().toISOString().split('T')[0],
-      openIssuesCount: 0
+      openIssuesCount: 0,
+      validationStatus: 'Pending Validation',
+      regulatoryScope: 'Non-regulated',
+      independentValidation: false,
+      documentationComplete: false
     };
     setRedwoodModels(prev => [...prev, newModel]);
 
@@ -194,10 +202,21 @@ export default function App() {
     <div className="size-full">
       <RedwoodAppShell currentView={redwoodView} onViewChange={setRedwoodView}>
         {redwoodView === 'dashboard' && (
-          <RedwoodDashboard
-            models={redwoodModels}
-            issues={issues}
-            onModelClick={handleLaunchValidation}
+          <ModelRiskDashboard
+            models={mockModels}
+            onViewModel={handleViewDetails}
+            onViewDocumentation={(modelId) => console.log('View documentation:', modelId)}
+            onViewValidationReport={(modelId) => console.log('View validation report:', modelId)}
+            onMonitorModel={(modelId) => console.log('Monitor model:', modelId)}
+            onInitiateValidation={handleLaunchValidation}
+            onViewModel360={(modelId) => handleViewDetails(modelId)}
+            onNavigateToList={(filters) => {
+              if (filters) {
+                // Apply filters if provided
+                console.log('Applying filters:', filters);
+              }
+              setRedwoodView('inventory');
+            }}
           />
         )}
 

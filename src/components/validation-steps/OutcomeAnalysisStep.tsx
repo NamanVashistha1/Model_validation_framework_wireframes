@@ -33,17 +33,17 @@ const [prodEndDate, setProdEndDate] = useState('');
 
   // Expanded techniques list
   const techniques = [
-    'Accuracy', 'Precision', 'Recall', 'F1 Score', 'Standered Deviation', 'F-test', 'P-test', 'Kendall Tau',
+    'Accuracy', 'Precision', 'Recall', 'F1 Score', 'F-test', 'P-test',
     'ROC Curve', 'KS Statistic', 'AUC', 'Gini Coefficient', 'Chi-square',
-    'Lift Chart', 'Confusion Matrix', 'Population Stability Index (PSI)', 'Characteristic Stability Index (CSI)', 'Concordance/Discordance', 'Information Value (IV)', 'Weight of Evidence (WoE)', 'Rate of Conservatism', 'Herfindahl-Hirschman Index (HHI)',
+    'Lift Chart', 'Confusion Matrix', 'Population Stability Index (PSI)', 'Characteristic Stability Index (CSI)', 'Concordance/Discordance',  'Rate of Conservatism', 
   ];
 
   const [selectedTechniques, setSelectedTechniques] = useState<string[]>([]);
   const [generated, setGenerated] = useState(false);
 
   const [deviations, setDeviations] = useState([
-    { metric: 'Accuracy Deviation', deviationFromLV: 0.05, deviationFromTraining: 0.08, deviationFromProd: 0.01, acceptability: '', comments: '', isSystem: true },
-    { metric: 'Precision Deviation', deviationFromLV: 0.03, deviationFromTraining: 0.06, deviationFromProd:0.05, acceptability: '', comments: '', isSystem: true },
+    { metric: 'Accuracy Deviation', deviationFromLV: 0.05, deviationFromTraining: 0.08,  acceptability: '', comments: '', isSystem: true },
+    { metric: 'Precision Deviation', deviationFromLV: 0.03, deviationFromTraining: 0.06, acceptability: '', comments: '', isSystem: true },
   ]);
 
   // Mock graph data
@@ -96,7 +96,7 @@ const mockGraphs = {
   };
 
   const addDeviation = () => {
-    setDeviations([...deviations, { metric: '', deviationFromLV: 0, deviationFromTraining: 0, deviationFromProd: 0, acceptability: '', comments: '', isSystem: false }]);
+    setDeviations([...deviations, { metric: '', deviationFromLV: 0, deviationFromTraining: 0, acceptability: '', comments: '', isSystem: false }]);
   };
 
   return (
@@ -132,7 +132,7 @@ const mockGraphs = {
                 {selectedSources.includes(source) && source === 'Production' && (
                  
                   <div className="grid grid-cols-2 gap-4 ml-4">
-                     <br/>
+                     {/* <br/> */}
                                <Label>Select Production window</Label>
                                <br/>
 
@@ -379,19 +379,19 @@ const mockGraphs = {
 
               {/* Deviation table */}
               <div>
-                <h3 className="mb-4">Deviations from Training vs Last Validation vs Production</h3>
+                <h3 className="mb-4">Performance Comparison from Training, Last Validation vs Current Review</h3>
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
                 <Button onClick={addDeviation} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff"}}>
-                  Add Drift +
+                  Add Analysis +
                 </Button>
               </div>
-                <Table>
+                <Table> 
                   <TableHeader>
                     <TableRow>
                       <TableHead>Metric</TableHead>
                       <TableHead>Deviation from Training</TableHead>
                       <TableHead>Deviation from  Last Validation</TableHead>
-                      <TableHead>Deviation from Production</TableHead>
+                      {/* <TableHead>Deviation from Production</TableHead> */}
                       <TableHead>Acceptable/Not Acceptable/NA <span className="text-red-500">*</span></TableHead>
                       <TableHead>Comments</TableHead>
                     </TableRow>
@@ -415,11 +415,11 @@ const mockGraphs = {
                           )}
                         </TableCell>
                         
-                        <TableCell>
+                        {/* <TableCell>
                           {dev.isSystem ? dev.deviationFromProd.toFixed(2) : (
                             <Input type="number" value={dev.deviationFromProd} onChange={e => updateDeviation(index, 'deviationFromTraining', e.target.value)} />
                           )}
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell>
                           <Select value={dev.acceptability} onValueChange={value => updateDeviation(index, 'acceptability', value)}>
                             <SelectTrigger>

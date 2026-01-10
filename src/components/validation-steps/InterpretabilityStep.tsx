@@ -38,7 +38,12 @@ const explainabilityTechniques = [
   'Partial Dependence Plots',
   'Integrated Gradients',
   'Counterfactual Explanations',
-  'Feature Ablation'
+  'Feature Ablation',
+  'INformation Value (IV)',
+  'Weight of Evidence (WoE)',
+  'Herfindahl-Hirschman Index (HHI)',
+  'Kendall Tau',
+  'Standard Deviation'
 ];
 
 // Feature list
@@ -59,30 +64,46 @@ export function InterpretabilityStep({ model, onComplete, onAddFinding, onSave, 
   const [notes, setNotes] = useState('');
   const [showGraphs, setShowGraphs] = useState(false);
 
-  interface Observation {
+  interface DeviationData {
+    technique: string;
     feature: string;
-    change: string;
+    devTraining: string;
+    devLV: string;
+    insight: string;
     acceptability: string;
     remarks: string;
   }
 
-  const [observations, setObservations] = useState<Observation[]>([
-    { feature: 'credit_score', change: '-7.9%', acceptability: '', remarks: '' },
-    { feature: 'debt_to_income', change: '+12.0%', acceptability: '', remarks: '' },
+  const [deviationData, setDeviationData] = useState<DeviationData[]>([
+    { technique: 'SHAP', feature: 'credit_score', devTraining: '-7.9%', devLV: '-2.8%', acceptability: 'Acceptable', remarks: 'Add Comment' },
+    { technique: 'SHAP', feature: 'debt_to_income', devTraining: '+12.0%', devLV: '+3.7%',  acceptability: 'Not Acceptable', remarks: 'Add Comment' },
+    { technique: 'SHAP', feature: 'employment_length', devTraining: '-10.0%', devLV: '-5.3%',  acceptability: 'Acceptable', remarks: 'Add Comment' },
+    { technique: 'LIME', feature: 'credit_score', devTraining: '-8.1%', devLV: '-3.0%', insight: 'Consistent with SHAP. Slight reduction in influence.', acceptability: 'Acceptable', remarks: 'Add Comment' },
+    { technique: 'LIME', feature: 'debt_to_income', devTraining: '+11.5%', devLV: '+4.2%',  acceptability: 'Not Acceptable', remarks: 'Add Comment' },
+    { technique: 'Permutation Feature Importance', feature: 'loan_amount', devTraining: '+5.2%', devLV: '+1.8%', acceptability: 'Acceptable', remarks: 'Add Comment' },
+    { technique: 'Permutation Feature Importance', feature: 'annual_income', devTraining: '0.0%', devLV: '-1.2%', acceptability: 'Acceptable', remarks: 'Add Comment' },
   ]);
+
+  const updateDeviationData = (index: number, field: keyof DeviationData, value: string) => {
+    const updated = [...deviationData];
+    updated[index][field] = value;
+    setDeviationData(updated);
+  };
+
+  const addDeviationRow = () => {
+    setDeviationData([...deviationData, {
+      technique: '',
+      feature: '',
+      devTraining: '',
+      devLV: '',
+      insight: '',
+      acceptability: '',
+      remarks: ''
+    }]);
+  };
 
   const handleGenerate = () => {
     setShowGraphs(true);
-  };
-
-  const addObservationRow = () => {
-    setObservations([...observations, { feature: '', change: '', acceptability: '', remarks: '' }]);
-  };
-
-  const updateObservation = (index: number, field: keyof Observation, value: string) => {
-    const updated = [...observations];
-    updated[index][field] = value;
-    setObservations(updated);
   };
 
   return (
@@ -282,46 +303,68 @@ export function InterpretabilityStep({ model, onComplete, onAddFinding, onSave, 
               </BarChart>
             </ResponsiveContainer>
             
-            {/* ---------------- Observation Table ---------------- */}
+            {/* ---------------- Feature Interpretability Deviation Analysis Table ---------------- */}
             <div className="mt-6">
-              <h4 className="mb-3">Observation Table</h4>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                <Button onClick={addObservationRow} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
-                  Add Observation +
+              <div className="flex justify-between items-center mb-3">
+                <h4>Feature Interpretability Deviation from Training, Last Validation vs Table</h4>
+                <Button onClick={addDeviationRow} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
+                  Add Deviation +
                 </Button>
               </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                This table compares feature importance deviations in Production data against Training and Last Validation datasets, providing insights for senior stakeholders.
+              </p>
+
               <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Feature</TableHead>
-                      <TableHead>Change %</TableHead>
-                      <TableHead>Acceptable / Not Acceptable / NA <span className="text-red-500">*</span></TableHead>
-                      <TableHead>Remarks</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Technique</TableHead>
+                    <TableHead>Feature</TableHead>
+                    <TableHead>Deviation vs Training (%)</TableHead>
+                    <TableHead>Deviation vs Last Validation (%)</TableHead>
+                    <TableHead>Acceptable / Not Acceptable / NA <span className="text-red-500">*</span></TableHead>
+                    <TableHead>Remarks</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  {observations.map((obs, index) => (
+                  {deviationData.map((row, index) => (
                     <TableRow key={index}>
                       <TableCell>
                         <input
                           type="text"
-                          value={obs.feature}
-                          onChange={(e) => updateObservation(index, 'feature', e.target.value)}
+                          value={row.technique}
+                          onChange={(e) => updateDeviationData(index, 'technique', e.target.value)}
                           className="border rounded p-1 w-full"
                         />
                       </TableCell>
                       <TableCell>
                         <input
                           type="text"
-                          value={obs.change}
-                          onChange={(e) => updateObservation(index, 'change', e.target.value)}
+                          value={row.feature}
+                          onChange={(e) => updateDeviationData(index, 'feature', e.target.value)}
+                          className="border rounded p-1 w-full"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={row.devTraining}
+                          onChange={(e) => updateDeviationData(index, 'devTraining', e.target.value)}
+                          className="border rounded p-1 w-full"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <input
+                          type="text"
+                          value={row.devLV}
+                          onChange={(e) => updateDeviationData(index, 'devLV', e.target.value)}
                           className="border rounded p-1 w-full"
                         />
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={obs.acceptability}
-                          onValueChange={(val) => updateObservation(index, 'acceptability', val)}
+                          value={row.acceptability}
+                          onValueChange={(val) => updateDeviationData(index, 'acceptability', val)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select" />
@@ -336,8 +379,8 @@ export function InterpretabilityStep({ model, onComplete, onAddFinding, onSave, 
                       <TableCell>
                         <input
                           type="text"
-                          value={obs.remarks}
-                          onChange={(e) => updateObservation(index, 'remarks', e.target.value)}
+                          value={row.remarks}
+                          onChange={(e) => updateDeviationData(index, 'remarks', e.target.value)}
                           className="border rounded p-1 w-full"
                         />
                       </TableCell>
@@ -345,9 +388,6 @@ export function InterpretabilityStep({ model, onComplete, onAddFinding, onSave, 
                   ))}
                 </TableBody>
               </Table>
-              {/* <Button onClick={addObservationRow} variant="outline" className="mt-4">
-                Add Observation
-              </Button> */}
             </div>
           </div>
         )}

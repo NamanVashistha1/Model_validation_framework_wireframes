@@ -16,6 +16,8 @@ import { IntegratedSummarySection } from './benchmarking/IntegratedSummarySectio
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { FileText, Upload } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
+import { displayValue, metricOrderForDisplay, metricHeader } from './benchmarking/benchmarkingUtils';
+import type { AutomlResult, ComparableModel, MetricKey } from '../../types/benchmarking';
 
 interface BenchmarkingStepProps {
   model: Model;
@@ -74,6 +76,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
   const [peer, setPeer] = useState(false);
   const [automl, setAutoml] = useState(true);
   const [cloneModel, setCloneModel] = useState(false);
+  const metrics: MetricKey[] = metricOrderForDisplay();
 
   // Global configuration error (no method selected on Compare)
   const [showError, setShowError] = useState(false);
@@ -90,11 +93,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
   const [metric, setMetric] = useState<string>('Gini Coefficient');
   const [automlError, setAutomlError] = useState(false);
 
-  // C) Clone
-  const [cloneTechniques, setCloneTechniques] = useState<Record<string, boolean>>(
-    Object.fromEntries(CLONE_TECHNIQUES.map(t => [t, false]))
-  );
-  const [cloneError, setCloneError] = useState(false);
+
 
   // Results after Compare
   const [ran, setRan] = useState(false);
@@ -171,11 +170,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
   const handleCloneToggle = (v: boolean | 'indeterminate') => {
     const nv = Boolean(v);
     setCloneModel(nv);
-    if (!nv) {
-      // reset techniques and error
-      setCloneTechniques(Object.fromEntries(CLONE_TECHNIQUES.map(t => [t, false])));
-      setCloneError(false);
-    }
+    // Clone model is now independent - no validation needed
   };
 
   const handleObservationsInput = (val: string) => {
@@ -218,14 +213,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
       setAutomlError(false);
     }
 
-    if (cloneModel) {
-      const count = Object.values(cloneTechniques).filter(Boolean).length;
-      const ok = count > 0;
-      setCloneError(!ok);
-      if (!ok) valid = false;
-    } else {
-      setCloneError(false);
-    }
+    // Clone model is now independent - no validation needed
 
 
     // If validations failed, stop here
@@ -247,7 +235,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
         )
       : undefined;
 
-    const cloneRes = cloneModel ? makeCloneResult(baseline, cloneTechniques) : undefined;
+    const cloneRes = cloneModel ? makeCloneResult(baseline, {}) : undefined; // Clone model is now independent
 
     setResult({
       baseline,
@@ -275,8 +263,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
     setMetric('Gini Coefficient');
     setAutomlError(false);
 
-    setCloneTechniques(Object.fromEntries(CLONE_TECHNIQUES.map(t => [t, false])));
-    setCloneError(false);
+    // Clone model is now independent - no reset needed
   };
 
   return (
@@ -335,105 +322,19 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
           </div>
 
           {automl && (
-            <div className="ml-6 mt-2 p-4 rounded-md border space-y-4">
-              {/* Data Source */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="period">Select Data Period</Label>
-                  <Select value={period} onValueChange={setPeriod}>
-                    <SelectTrigger id="period">
-                      <SelectValue placeholder="Select period" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white">
-                      {AUTOML_PERIODS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="obs">Number of Observations</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="obs"
-                      type="number"
-                      min={10000}
-                      max={100000}
-                      step={1000}
-                      value={observations}
-                      onChange={(e) => handleObservationsInput(e.target.value)}
-                      className="w-36"
-                    />
-                    <div className="flex-1">
-                      <Slider
-                        min={10000}
-                        max={100000}
-                        step={1000}
-                        value={[observations]}
-                        onValueChange={handleObservationsSlider}
-                      />
-                    </div>
-                    <div className="w-16 text-right text-sm text-muted-foreground">{observationsK}K</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Algorithms */}
-              <div className="space-y-2">
-                <Label>Select Algorithms</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {Object.keys(algorithms).map((algo) => {
-                    const id = `algo-${algo}`;
-                    const checked = Boolean(algorithms[algo]);
-                    return (
-                      <div key={algo} className="flex items-center gap-2">
-                        <Checkbox
-                          id={id}
-                          checked={checked}
-                          onCheckedChange={(v) =>
-                            setAlgorithms((prev) => ({ ...prev, [algo]: Boolean(v) }))
-                          }
-                        />
-                        <Label htmlFor={id} className="text-sm">
-                          {algo}
-                        </Label>
-                      </div>
-                    );
-                  })}
-                </div>
-                {automlError && (
-                  <div className="text-sm text-red-600" role="alert">
-                    Select at least one algorithm
-                  </div>
-                )}
-              </div>
-
-              {/* Optimization Metric */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Primary Optimization Metric</Label>
-                  <Select value={metric} onValueChange={setMetric}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select metric" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white">
-                      {AUTOML_METRICS.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Estimated Runtime</Label>
-                  <div className="text-sm text-muted-foreground">{estimatedRuntime}</div>
-                </div>
-              </div>
+            <div className="ml-6 mt-2 p-4 rounded-md border">
+              <AutoMLChallengerSection
+                baseline={result?.baseline}
+                automl={result?.automl}
+                mode="config"
+                onConfigChange={(config) => {
+                  // Handle configuration changes from AutoML section
+                  if (config.period) setPeriod(config.period);
+                  if (config.observations) setObservations(config.observations);
+                  if (config.algorithms) setAlgorithms(config.algorithms);
+                  if (config.metric) setMetric(config.metric);
+                }}
+              />
             </div>
           )}
         </div>
@@ -446,33 +347,8 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
           </div>
 
           {cloneModel && (
-            <div className="ml-6 mt-2 p-4 rounded-md border space-y-3">
-              <div className="text-sm font-medium">Select Optimization Techniques</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {CLONE_TECHNIQUES.map((t) => {
-                  const id = `clone-${t}`;
-                  const checked = Boolean(cloneTechniques[t]);
-                  return (
-                    <div key={t} className="flex items-center gap-2">
-                      <Checkbox
-                        id={id}
-                        checked={checked}
-                        onCheckedChange={(v) =>
-                          setCloneTechniques((prev) => ({ ...prev, [t]: Boolean(v) }))
-                        }
-                      />
-                      <Label htmlFor={id} className="text-sm">
-                        {t}
-                      </Label>
-                    </div>
-                  );
-                })}
-              </div>
-              {cloneError && (
-                <div className="text-sm text-red-600" role="alert">
-                  Select at least one technique
-                </div>
-              )}
+            <div className="ml-6 mt-2 p-4 rounded-md border">
+              <CloneCurrentModelSection mode="config" />
             </div>
           )}
         </div>
@@ -531,13 +407,109 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
       {/* Results Sections */}
       {ran && result && (
         <div className="space-y-6 mt-2">
+       
+    {/* AutoML Challenger Generation - Configuration Summary */}
+    {automl && result?.automl && (() => {
+      const automlData = result.automl!;
+      return (
+        <Card className="p-4 space-y-1">
+          <h3 className="font-medium text-xl">AutoML Challenger Generation</h3>
+          <div className="text-sm">
+            <span className="font-medium">Data Source:</span> {automlData.period}, {automlData.observations.toLocaleString()} observations
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">Algorithms to Test:</span> {automlData.testedAlgos.join(', ') || '—'}
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">Optimization Metric:</span> {metricHeader(automlData.metricKey)}
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">Estimated Runtime:</span> {automlData.estimatedRuntime}
+          </div>
+        </Card>
+      );
+    })()}
+
+    {/* Results Table - Only show if both baseline and automl data exist */}
+    {result?.baseline && result?.automl && (() => {
+      const baselineData = result.baseline!;
+      const automlData = result.automl!;
+      return (
+        <Card className="p-4">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-40">Metric</TableHead>
+                  <TableHead>Your Model (Baseline)</TableHead>
+                  {automlData.testedAlgos.map((algo) => (
+                    <TableHead key={algo}>
+                      <div className="flex items-center gap-2">
+                        <span>{algo}</span>
+                        {automlData.best.name === algo && (
+                          <span className="inline-block rounded-full bg-green-600 text-white text-xs px-2 py-0.5">
+                            Best
+                          </span>
+                        )}
+                      </div>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {metrics.map((m) => (
+                  <TableRow key={m}>
+                    <TableCell className="font-medium">{metricHeader(m)}</TableCell>
+                    <TableCell>{displayValue(baselineData.metrics[m], m)}</TableCell>
+                    {automlData.testedAlgos.map((algo) => {
+                      const row = automlData.rows.find((r) => r.name === algo);
+                      return (
+                        <TableCell key={`${algo}-${m}`}>
+                          {displayValue(row?.metrics[m] ?? 0, m)}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      );
+    })()}
+
+    {/* Recommendations - Only show if automl data exists */}
+    {result?.automl && (() => {
+      const automlData = result.automl!;
+      return (
+        <Card className="p-4">
+          <h4 className="font-medium mb-2">Recommendations</h4>
+          <ul className="list-disc pl-6 text-sm text-muted-foreground space-y-1">
+            {automlData.testedAlgos.length === 0 ? (
+              <li>No algorithms selected. Please configure and re-run.</li>
+            ) : (
+              <>
+                <li>
+                  {automlData.best.name} shows strongest {metricHeader(automlData.metricKey)} vs baseline. Consider promoting or further validation.
+                </li>
+                <li>
+                  Validate improvements on out-of-time datasets and confirm stability across population segments.
+                </li>
+              </>
+            )}
+          </ul>
+        </Card>
+      );
+    })()}
+
+
           {peer && result.peer && (
             <PeerComparisonSection baseline={result.baseline} peer={result.peer} />
           )}
 
-          {automl && result.automl && (
-            <AutoMLChallengerSection baseline={result.baseline} automl={result.automl} />
-          )}
+            {/* {automl && result.automl && (
+              <AutoMLChallengerSection baseline={result.baseline} automl={result.automl} />
+            )} */}
 
           {cloneModel && result.clone && (
             <CloneCurrentModelSection baseline={result.baseline} clone={result.clone} />
@@ -587,7 +559,7 @@ export function BenchmarkingStep({ model, onComplete, onAddFinding, onSave, onSa
                     <TableCell>
                       <Select
                         value={obs.acceptability}
-                        onValueChange={(val) => updateBmObservation(index, 'acceptability', val)}
+                        onValueChange={(val: string) => updateBmObservation(index, 'acceptability', val)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select" />

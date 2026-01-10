@@ -11,6 +11,7 @@ import { DataProfilingStep } from './validation-steps/DataProfilingStep';
 import { OutcomeAnalysisStep } from './validation-steps/OutcomeAnalysisStep';
 import { InterpretabilityStep } from './validation-steps/InterpretabilityStep';
 import { BenchmarkingStep } from './validation-steps/BenchmarkingStep';
+import { ModelTieringStep } from './validation-steps/ModelTieringStep';
 import { FindingsStep } from './validation-steps/FindingsStep';
 import { ReportGenerationStep } from './validation-steps/ReportGenerationStep';
 import { SensitivityAnalysisStep } from './validation-steps/SensitivityAnalysisStep';
@@ -36,8 +37,9 @@ const [steps, setSteps] = useState<ValidationStepState[]>([
   { id: 'benchmarking', title: 'Benchmarking', status: 'not-started' },
   { id: 'sensitivity', title: 'Sensitivity Analysis', status: 'not-started' },
   { id: 'conceptual', title: 'Conceptual Soundness', status: 'not-started' },
+  { id: 'tiering', title: 'Model Tiering Review', status: 'not-started' },
   { id: 'findings', title: 'Findings & Issues', status: 'not-started' },
-  { id: 'report', title: 'Report Generation', status: 'not-started' }
+  { id: 'report', title: 'Review & Validation', status: 'not-started' }
 ]);
 
   const [currentStep, setCurrentStep] = useState('data');
@@ -70,7 +72,7 @@ const [steps, setSteps] = useState<ValidationStepState[]>([
   };
 
   const getNextStep = (currentStepId: string): string | null => {
-    const stepOrder = ['data', 'outcomes', 'interpretability', 'benchmarking', 'sensitivity', 'conceptual', 'findings', 'report'];
+    const stepOrder = ['data', 'outcomes', 'interpretability', 'benchmarking', 'sensitivity', 'conceptual', 'tiering', 'findings', 'report'];
     const currentIndex = stepOrder.indexOf(currentStepId);
     return currentIndex < stepOrder.length - 1 ? stepOrder[currentIndex + 1] : null;
   };
@@ -94,7 +96,7 @@ const [steps, setSteps] = useState<ValidationStepState[]>([
 
   const handleCancel = () => {
     // Cancel functionality - could go back to previous step or reset
-    const stepOrder = ['data', 'outcomes', 'interpretability', 'benchmarking', 'sensitivity', 'conceptual', 'findings', 'report'];
+    const stepOrder = ['data', 'outcomes', 'interpretability', 'benchmarking', 'sensitivity', 'conceptual', 'tiering', 'findings', 'report'];
     const currentIndex = stepOrder.indexOf(currentStep);
     if (currentIndex > 0) {
       setCurrentStep(stepOrder[currentIndex - 1]);
@@ -274,6 +276,16 @@ const [steps, setSteps] = useState<ValidationStepState[]>([
   />
 </TabsContent>
 
+<TabsContent value="tiering">
+  <ModelTieringStep
+    model={model}
+    onComplete={() => updateStepStatus('tiering', 'completed')}
+    onAddFinding={addFinding}
+    onSave={handleSave}
+    onSaveAndContinue={handleSaveAndContinue}
+    onCancel={handleCancel}
+  />
+</TabsContent>
 
 <TabsContent value="findings">
   <FindingsStep

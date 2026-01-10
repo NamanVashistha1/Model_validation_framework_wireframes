@@ -1,261 +1,596 @@
-import { RedwoodModel, Issue, DashboardKPIs } from '../types/redwood';
-import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, AlertCircle, CheckCircle, Clock, FileText, Users } from 'lucide-react';
-import { RiskHeatmap } from './RiskHeatmap';
-import { ComplianceMonitoringPanel } from './ComplianceMonitoringPanel';
-import { FindingsTrendsChart } from './FindingsTrendsChart';
-import { PerformanceEWSPanel } from './PerformanceEWSPanel';
-import { OwnershipGovernance } from './OwnershipGovernance';
+import { useState, useMemo } from 'react';
+import { Model, ModelRiskTier, ModelStatus } from '../types/model';
+import { Card } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import {
+  Search,
+  Filter,
+  Download,
+  Calendar,
+  AlertTriangle,
+  TrendingUp,
+  BarChart3,
+  PieChart,
+  Map,
+  Bookmark,
+  Settings,
+  Eye,
+  FileText,
+  Activity,
+  Users,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle
+} from 'lucide-react';
 
 interface RedwoodDashboardProps {
-  models: RedwoodModel[];
-  issues: Issue[];
-  onModelClick?: (modelId: string) => void;
+  models: Model[];
+  onViewDetails: (modelId: string) => void;
+  onValidate: (modelId: string) => void;
+  onViewModel360?: (modelId: string) => void;
+  onOpenValidationReport?: (modelId: string) => void;
+  onViewMonitoringResults?: (modelId: string) => void;
+  onTrackObservations?: (modelId: string) => void;
+  onViewDocumentation?: (modelId: string) => void;
 }
 
-const COLORS = {
-  critical: '#DA1B1B',
-  high: '#FF9B21',
-  medium: '#FDC162',
-  low: '#25A900',
-  blue: '#0067b8',
-  green: '#25A900',
-  orange: '#FF9B21',
-  red: '#DA1B1B',
-  gray: '#87929D'
-};
+// Mock data for findings/observations
+const mockFindings = [
+  { id: 'F001', modelId: 'M001', severity: 'High', status: 'Open', dueDate: '2025-12-01' },
+  { id: 'F002', modelId: 'M002', severity: 'Medium', status: 'Resolved', dueDate: '2025-11-15' },
+  { id: 'F003', modelId: 'M003', severity: 'Low', status: 'Open', dueDate: '2025-12-15' },
+];
 
-export function RedwoodDashboard({ models, issues, onModelClick }: RedwoodDashboardProps) {
-  // Calculate KPIs
-  const kpis = calculateKPIs(models, issues);
+export function RedwoodDashboard({
+  models,
+  onViewDetails,
+  onValidate,
+  onViewModel360,
+  onOpenValidationReport,
+  onViewMonitoringResults,
+  onTrackObservations,
+  onViewDocumentation
+}: RedwoodDashboardProps) {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState({
+    modelId: '',
+    modelName: '',
+    riskTier: 'all',
+    lineOfBusiness: 'all',
+    businessOwner: 'all',
+    validationDueDate: '',
+    regulatoryScope: 'all',
+    modelStatus: 'all',
+    lifecycleStatus: 'all'
+  });
 
-  // Lifecycle data for chart
-  const lifecycleData = Object.entries(kpis.modelsByLifecycle).map(([name, value]) => ({
-    name,
-    value
-  }));
+  // Advanced filtering logic
+  const filteredModels = useMemo(() => {
+    return models.filter(model => {
+      const matchesSearch = !searchTerm ||
+        model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        model.id.toLowerCase().includes(searchTerm.toLowerCase());
 
-  // Risk tier data for chart
-  const riskTierData = Object.entries(kpis.modelsByRiskTier).map(([name, value]) => ({
-    name,
-    value,
-    color: name === 'High' ? COLORS.red : name === 'Medium' ? COLORS.orange : COLORS.green
-  }));
+      const matchesFilters =
+        (filters.modelId === '' || model.id.toLowerCase().includes(filters.modelId.toLowerCase())) &&
+        (filters.modelName === '' || model.name.toLowerCase().includes(filters.modelName.toLowerCase())) &&
+        (filters.riskTier === 'all' || model.riskTier === filters.riskTier) &&
+        (filters.lineOfBusiness === 'all' || model.lineOfBusiness === filters.lineOfBusiness) &&
+        (filters.businessOwner === 'all' || model.businessOwner === filters.businessOwner || model.developer === filters.businessOwner) &&
+        (filters.regulatoryScope === 'all' || model.regulatoryScope === filters.regulatoryScope) &&
+        (filters.modelStatus === 'all' || model.status === filters.modelStatus) &&
+        (filters.lifecycleStatus === 'all' || model.lifecycleStatus === filters.lifecycleStatus);
 
-  // Regulatory scope data
-  const regulatoryData = Object.entries(kpis.modelsByRegulatoryScope).map(([name, value]) => ({
-    name,
-    value
-  }));
+      return matchesSearch && matchesFilters;
+    });
+  }, [models, searchTerm, filters]);
 
-  return (
-    <div className="p-6 space-y-6">
-      {/* KPI Summary Tiles */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPITile
-          title="Total Models"
-          value={kpis.totalModels}
-          icon={FileText}
-          iconBg="bg-[#0067b8]"
-        />
-        <KPITile
-          title="Overdue Validations"
-          value={kpis.overdueValidations}
-          subtitle={`${kpis.overdueValidationsPercent.toFixed(1)}% of total`}
-          icon={Clock}
-          iconBg="bg-[#DA1B1B]"
-        />
-        <KPITile
-          title="Open Findings"
-          value={kpis.openFindingsBySeverity.Critical + kpis.openFindingsBySeverity.High + kpis.openFindingsBySeverity.Medium + kpis.openFindingsBySeverity.Low}
-          subtitle={`${kpis.openFindingsBySeverity.Critical} Critical`}
-          icon={AlertCircle}
-          iconBg="bg-[#FF9B21]"
-        />
-        <KPITile
-          title="Independent Validation"
-          value={`${kpis.independentValidationPercent.toFixed(0)}%`}
-          subtitle="Completed"
-          icon={CheckCircle}
-          iconBg="bg-[#25A900]"
-        />
-      </div>
+  // KPI Calculations
+  const kpis = useMemo(() => {
+    const totalActive = models.filter(m => m.lifecycleStatus !== 'Retired').length;
+    const overdue = models.filter(m => m.status === 'Overdue').length;
+    const overduePercentage = totalActive > 0 ? Math.round((overdue / totalActive) * 100) : 0;
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Lifecycle Stage */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
-          <h3 className="text-[#1A1816] mb-4">Models by Lifecycle Stage</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={lifecycleData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E0E1E3" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Bar dataKey="value" fill="#0067b8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+    const upcoming30 = models.filter(m => {
+      const dueDate = new Date(m.nextValidationDate || '');
+      const now = new Date();
+      const daysDiff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+      return daysDiff >= 0 && daysDiff <= 30;
+    }).length;
 
-        {/* Risk Tier Distribution */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
-          <h3 className="text-[#1A1816] mb-4">Models by Risk Tier</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={riskTierData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {riskTierData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+    const upcoming60 = models.filter(m => {
+      const dueDate = new Date(m.nextValidationDate || '');
+      const now = new Date();
+      const daysDiff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+      return daysDiff > 30 && daysDiff <= 60;
+    }).length;
 
-        {/* Regulatory Scope */}
-        <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
-          <h3 className="text-[#1A1816] mb-4">Regulatory Scope</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={regulatoryData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {regulatoryData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.blue : COLORS.gray} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+    const upcoming90 = models.filter(m => {
+      const dueDate = new Date(m.nextValidationDate || '');
+      const now = new Date();
+      const daysDiff = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+      return daysDiff > 60 && daysDiff <= 90;
+    }).length;
 
-      {/* Findings by Severity */}
-      <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
-        <h3 className="text-[#1A1816] mb-4">Open Findings by Severity</h3>
-        <div className="flex items-center gap-6">
-          <FindingsBadge label="Critical" count={kpis.openFindingsBySeverity.Critical} color="bg-[#DA1B1B]" />
-          <FindingsBadge label="High" count={kpis.openFindingsBySeverity.High} color="bg-[#FF9B21]" />
-          <FindingsBadge label="Medium" count={kpis.openFindingsBySeverity.Medium} color="bg-[#FDC162]" />
-          <FindingsBadge label="Low" count={kpis.openFindingsBySeverity.Low} color="bg-[#25A900]" />
-        </div>
-      </div>
+    const withOpenFindings = models.filter(m =>
+      mockFindings.some(f => f.modelId === m.id && f.status === 'Open')
+    ).length;
+    const findingsPercentage = totalActive > 0 ? Math.round((withOpenFindings / totalActive) * 100) : 0;
 
-      {/* Compliance Monitoring Panel */}
-      <ComplianceMonitoringPanel models={models} kpis={kpis} onModelClick={onModelClick} />
+    return {
+      totalActive,
+      overdue,
+      overduePercentage,
+      upcoming30,
+      upcoming60,
+      upcoming90,
+      withOpenFindings,
+      findingsPercentage
+    };
+  }, [models]);
 
-      {/* Risk Heatmap */}
-      <RiskHeatmap models={models} onCellClick={onModelClick} />
+  // Distribution data for visualizations
+  const distributions = useMemo(() => {
+    const byLOB = models.reduce((acc, model) => {
+      acc[model.lineOfBusiness] = (acc[model.lineOfBusiness] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-      {/* Findings Trends */}
-      <FindingsTrendsChart issues={issues} />
+    const byRiskTier = models.reduce((acc, model) => {
+      acc[model.riskTier] = (acc[model.riskTier] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-      {/* Performance & Early Warning Signals */}
-      <PerformanceEWSPanel models={models} />
+    const byOwner = models.reduce((acc, model) => {
+      const owner = model.businessOwner || model.developer;
+      acc[owner] = (acc[owner] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-      {/* Ownership & Governance */}
-      <OwnershipGovernance models={models} />
-    </div>
-  );
-}
+    const byStatus = models.reduce((acc, model) => {
+      acc[model.status] = (acc[model.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-function KPITile({ title, value, subtitle, icon: Icon, iconBg }: {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: any;
-  iconBg: string;
-}) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-[#E0E1E3] p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <p className="text-sm text-[#87929D] mb-1">{title}</p>
-          <p className="text-[#1A1816]">{value}</p>
-          {subtitle && <p className="text-sm text-[#87929D] mt-1">{subtitle}</p>}
-        </div>
-        <div className={`${iconBg} p-3 rounded-lg`}>
-          <Icon className="size-6 text-white" />
-        </div>
-      </div>
-    </div>
-  );
-}
+    const byRegulatoryScope = models.reduce((acc, model) => {
+      if (model.regulatoryScope) {
+        // regulatoryScope is a string, so we'll count it as-is
+        acc[model.regulatoryScope] = (acc[model.regulatoryScope] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
 
-function FindingsBadge({ label, count, color }: { label: string; count: number; color: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className={`${color} text-white px-4 py-2 rounded-lg min-w-16 text-center`}>
-        <div className="text-2xl">{count}</div>
-      </div>
-      <span className="text-[#262626]">{label}</span>
-    </div>
-  );
-}
+    return { byLOB, byRiskTier, byOwner, byStatus, byRegulatoryScope };
+  }, [models]);
 
-function calculateKPIs(models: RedwoodModel[], issues: Issue[]): DashboardKPIs {
-  const now = new Date();
-  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-  const in90Days = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+  // Upcoming validations
+  const upcomingValidations = useMemo(() => {
+    const now = new Date();
+    return models
+      .filter(model => model.nextValidationDate)
+      .map(model => ({
+        ...model,
+        daysUntilDue: Math.ceil((new Date(model.nextValidationDate!).getTime() - now.getTime()) / (1000 * 3600 * 24))
+      }))
+      .filter(model => model.daysUntilDue >= 0 && model.daysUntilDue <= 90)
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+  }, [models]);
 
-  return {
-    totalModels: models.length,
-    modelsByLifecycle: {
-      Development: models.filter(m => m.lifecycleStage === 'Development').length,
-      Deployed: models.filter(m => m.lifecycleStage === 'Deployed').length,
-      'Under Review': models.filter(m => m.lifecycleStage === 'Under Review').length,
-      Retired: models.filter(m => m.lifecycleStage === 'Retired').length
-    },
-    modelsByRiskTier: {
-      High: models.filter(m => m.riskTier === 'High').length,
-      Medium: models.filter(m => m.riskTier === 'Medium').length,
-      Low: models.filter(m => m.riskTier === 'Low').length
-    },
-    modelsByRegulatoryScope: {
-      Regulated: models.filter(m => m.regulatoryScope === 'Regulated').length,
-      'Non-regulated': models.filter(m => m.regulatoryScope === 'Non-regulated').length
-    },
-    overdueValidations: models.filter(m => m.validationStatus === 'Overdue').length,
-    overdueValidationsPercent: (models.filter(m => m.validationStatus === 'Overdue').length / models.length) * 100,
-    openFindingsBySeverity: {
-      Critical: issues.filter(i => i.severity === 'Critical' && i.status === 'Pending').length,
-      High: issues.filter(i => i.severity === 'High' && i.status === 'Pending').length,
-      Medium: issues.filter(i => i.severity === 'Medium' && i.status === 'Pending').length,
-      Low: issues.filter(i => i.severity === 'Low' && i.status === 'Pending').length
-    },
-    upcomingReviews30Days: models.filter(m => {
-      if (!m.nextValidationDate) return false;
-      const nextDate = new Date(m.nextValidationDate);
-      return nextDate > now && nextDate <= in30Days;
-    }).length,
-    upcomingReviews60Days: models.filter(m => {
-      if (!m.nextValidationDate) return false;
-      const nextDate = new Date(m.nextValidationDate);
-      return nextDate > in30Days && nextDate <= in60Days;
-    }).length,
-    upcomingReviews90Days: models.filter(m => {
-      if (!m.nextValidationDate) return false;
-      const nextDate = new Date(m.nextValidationDate);
-      return nextDate > in60Days && nextDate <= in90Days;
-    }).length,
-    independentValidationPercent: (models.filter(m => m.independentValidation).length / models.length) * 100,
-    breachedMonitoringKPIs: models.filter(m => m.monitoringAlerts && m.monitoringAlerts.length > 0).length
+  // Findings summary
+  const findingsSummary = useMemo(() => {
+    const open = mockFindings.filter(f => f.status === 'Open').length;
+    const resolved = mockFindings.filter(f => f.status === 'Resolved').length;
+    const dueSoon = mockFindings.filter(f => {
+      const dueDate = new Date(f.dueDate);
+      const now = new Date();
+      return dueDate > now && dueDate <= new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    }).length;
+
+    return { open, resolved, dueSoon };
+  }, []);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
+
+  const handleExport = (format: 'excel' | 'pdf') => {
+    // Mock export functionality
+    console.log(`Exporting to ${format}...`);
+    // In real implementation, this would trigger file download
+  };
+
+  const getRiskColor = (days: number) => {
+    if (days < 0) return 'text-red-600 bg-red-50';
+    if (days <= 30) return 'text-orange-600 bg-orange-50';
+    if (days <= 60) return 'text-yellow-600 bg-yellow-50';
+    return 'text-green-600 bg-green-50';
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">Model Risk Management Dashboard</h1>
+            <p className="text-muted-foreground">Comprehensive oversight of model inventory and validation pipeline</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleExport('excel')}>
+              <Download className="w-4 h-4 mr-2" />
+              Export Excel
+            </Button>
+            <Button variant="outline" onClick={() => handleExport('pdf')}>
+              <Download className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button variant="outline">
+              <Bookmark className="w-4 h-4 mr-2" />
+              Bookmark
+            </Button>
+            <Button variant="outline">
+              <Settings className="w-4 h-4 mr-2" />
+              Customize
+            </Button>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+          <TabsList>
+            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="list">Model List View</TabsTrigger>
+          </TabsList>
+
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6">
+            {/* Summary KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Active Models</p>
+                    <p className="text-2xl font-bold">{kpis.totalActive}</p>
+                  </div>
+                  <BarChart3 className="w-8 h-8 text-blue-500" />
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Overdue Validations</p>
+                    <p className="text-2xl font-bold text-red-600">{kpis.overdue}</p>
+                    <p className="text-xs text-muted-foreground">{kpis.overduePercentage}% of total</p>
+                  </div>
+                  <AlertTriangle className="w-8 h-8 text-red-500" />
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Upcoming (30/60/90 days)</p>
+                    <p className="text-2xl font-bold text-orange-600">{kpis.upcoming30}/{kpis.upcoming60}/{kpis.upcoming90}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-orange-500" />
+                </div>
+              </Card>
+
+              <Card className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Models with Open Findings</p>
+                    <p className="text-2xl font-bold text-purple-600">{kpis.withOpenFindings}</p>
+                    <p className="text-xs text-muted-foreground">{kpis.findingsPercentage}% of total</p>
+                  </div>
+                  <AlertCircle className="w-8 h-8 text-purple-500" />
+                </div>
+              </Card>
+            </div>
+
+            {/* Revalidation Triggers */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setFilters({...filters, modelStatus: 'Overdue'})}>
+                <div className="flex items-center gap-3">
+                  <XCircle className="w-6 h-6 text-red-500" />
+                  <div>
+                    <p className="font-medium">Overdue Validations</p>
+                    <p className="text-sm text-muted-foreground">{kpis.overdue} models require attention</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="w-6 h-6 text-orange-500" />
+                  <div>
+                    <p className="font-medium">Performance Breaches</p>
+                    <p className="text-sm text-muted-foreground">3 models with consecutive breaches</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 text-yellow-500" />
+                  <div>
+                    <p className="font-medium">Repeated Findings</p>
+                    <p className="text-sm text-muted-foreground">2 models with unresolved issues</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Distribution Visualizations */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Models by Line of Business</h3>
+                <div className="space-y-3">
+                  {Object.entries(distributions.byLOB).map(([lob, count]) => (
+                    <div key={lob} className="flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
+                         onClick={() => handleFilterChange('lineOfBusiness', lob)}>
+                      <span>{lob}</span>
+                      <Badge>{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Models by Risk Tier</h3>
+                <div className="space-y-3">
+                  {Object.entries(distributions.byRiskTier).map(([tier, count]) => (
+                    <div key={tier} className="flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded"
+                         onClick={() => handleFilterChange('riskTier', tier)}>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        tier === 'High' ? 'bg-red-100 text-red-800' :
+                        tier === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>{tier} Risk</span>
+                      <Badge>{count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            {/* Validation Calendar & Findings */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Upcoming Validations (Next 90 Days)</h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {upcomingValidations.slice(0, 10).map((model) => (
+                    <div key={model.id} className={`p-3 rounded border cursor-pointer hover:shadow-sm ${getRiskColor(model.daysUntilDue)}`}
+                         onClick={() => onViewDetails?.(model.id)}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium">{model.name}</p>
+                          <p className="text-sm">{model.id} • {model.riskTier} Risk</p>
+                        </div>
+                        <Badge variant={model.daysUntilDue <= 30 ? "destructive" : "secondary"}>
+                          {model.daysUntilDue <= 0 ? 'Overdue' : `${model.daysUntilDue} days`}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Observations & Findings</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-red-600">{findingsSummary.open}</p>
+                    <p className="text-sm text-muted-foreground">To Resolve</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">{findingsSummary.resolved}</p>
+                    <p className="text-sm text-muted-foreground">Resolved</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">{findingsSummary.dueSoon}</p>
+                    <p className="text-sm text-muted-foreground">Due Soon</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Risk Heatmap Placeholder */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Risk Heatmap: Risk Tier vs Validation Compliance</h3>
+              <div className="grid grid-cols-4 gap-2">
+                {['High', 'Medium', 'Low'].map(riskTier => (
+                  ['Compliant', 'Overdue', 'Upcoming', 'Not Due'].map(status => (
+                    <div key={`${riskTier}-${status}`}
+                         className={`p-4 text-center text-sm font-medium rounded ${
+                           riskTier === 'High' && status === 'Overdue' ? 'bg-red-200 text-red-800' :
+                           riskTier === 'High' ? 'bg-red-100 text-red-700' :
+                           riskTier === 'Medium' && status === 'Overdue' ? 'bg-orange-200 text-orange-800' :
+                           riskTier === 'Medium' ? 'bg-orange-100 text-orange-700' :
+                           'bg-green-100 text-green-700'
+                         }`}>
+                      {riskTier} Risk<br/>{status}
+                    </div>
+                  ))
+                ))}
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* Model List View Tab */}
+          <TabsContent value="list" className="space-y-6">
+            {/* Advanced Filters */}
+            <Card className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter className="w-5 h-5" />
+                <h3 className="text-lg font-semibold">Advanced Filters</h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <Input
+                  placeholder="Model ID"
+                  value={filters.modelId}
+                  onChange={(e) => handleFilterChange('modelId', e.target.value)}
+                />
+                <Input
+                  placeholder="Model Name"
+                  value={filters.modelName}
+                  onChange={(e) => handleFilterChange('modelName', e.target.value)}
+                />
+                <Select value={filters.riskTier} onValueChange={(value: string) => handleFilterChange('riskTier', value)}>
+                  <SelectTrigger><SelectValue placeholder="Risk Tier" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Risk Tiers</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filters.lineOfBusiness} onValueChange={(value: string) => handleFilterChange('lineOfBusiness', value)}>
+                  <SelectTrigger><SelectValue placeholder="Line of Business" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Lines</SelectItem>
+                    {/* Add LOB options dynamically */}
+                  </SelectContent>
+                </Select>
+                <Select value={filters.businessOwner} onValueChange={(value: string) => handleFilterChange('businessOwner', value)}>
+                  <SelectTrigger><SelectValue placeholder="Owner" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Owners</SelectItem>
+                    {/* Add owner options dynamically */}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="date"
+                  placeholder="Validation Due Date"
+                  value={filters.validationDueDate}
+                  onChange={(e) => handleFilterChange('validationDueDate', e.target.value)}
+                />
+                <Select value={filters.regulatoryScope} onValueChange={(value: string) => handleFilterChange('regulatoryScope', value)}>
+                  <SelectTrigger><SelectValue placeholder="Regulatory Scope" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Scopes</SelectItem>
+                    <SelectItem value="IFRS 9">IFRS 9</SelectItem>
+                    <SelectItem value="Basel">Basel</SelectItem>
+                    <SelectItem value="Stress Testing">Stress Testing</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filters.modelStatus} onValueChange={(value: string) => handleFilterChange('modelStatus', value)}>
+                  <SelectTrigger><SelectValue placeholder="Model Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Retired">Retired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
+
+            {/* Model List Table */}
+            <Card className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Model Inventory ({filteredModels.length} models)</h3>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm">
+                    <Search className="w-4 h-4 mr-2" />
+                    Search
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Model Name</TableHead>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>Risk Tier</TableHead>
+                      <TableHead>Validation Due</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Line of Business</TableHead>
+                      <TableHead>Regulatory Scope</TableHead>
+                      <TableHead>Last Validation</TableHead>
+                      <TableHead>Open Findings</TableHead>
+                      <TableHead>Next Review</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredModels.map((model) => (
+                      <TableRow key={model.id}>
+                        <TableCell className="font-medium">{model.name}</TableCell>
+                        <TableCell>{model.id}</TableCell>
+                        <TableCell>{model.businessOwner || model.developer}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            model.riskTier === 'High' ? 'destructive' :
+                            model.riskTier === 'Medium' ? 'secondary' : 'outline'
+                          }>
+                            {model.riskTier}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{model.nextValidationDate || 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            model.status === 'Overdue' ? 'destructive' :
+                            model.status === 'Pending Validation' ? 'secondary' : 'outline'
+                          }>
+                            {model.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{model.lineOfBusiness}</TableCell>
+                        <TableCell>{model.regulatoryScope || 'N/A'}</TableCell>
+                        <TableCell>{model.lastValidationDate || 'N/A'}</TableCell>
+                        <TableCell>
+                          {mockFindings.filter(f => f.modelId === model.id && f.status === 'Open').length}
+                        </TableCell>
+                        <TableCell>{model.nextValidationDate || 'N/A'}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => onViewModel360?.(model.id)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onValidate(model.id)}>
+                              <CheckCircle className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onOpenValidationReport?.(model.id)}>
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onViewMonitoringResults?.(model.id)}>
+                              <Activity className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onTrackObservations?.(model.id)}>
+                              <AlertCircle className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => onViewDocumentation?.(model.id)}>
+                              <FileText className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {filteredModels.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No models found matching your criteria</p>
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
 }

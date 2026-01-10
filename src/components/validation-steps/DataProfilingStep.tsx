@@ -25,6 +25,8 @@ interface DataProfilingStepProps {
 export function DataProfilingStep({ model, onComplete, onAddFinding, onSave, onSaveAndContinue, onCancel }: DataProfilingStepProps) {
   const dataSources = ['Training', 'Last Validation', 'Production'];
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+const [prodStartDate, setProdStartDate] = useState('');
+const [prodEndDate, setProdEndDate] = useState('');
 
   const mockPastProductions = [
     { date: '2023-09-01' },
@@ -152,24 +154,52 @@ const addDrift = () => {
                     //     ))}
                     //   </SelectContent>
                     // </Select>
-                    <Input
-                      className="w-40 ml-2"
-                      type="date"
-                      value={selectedProductionDate}
-                      onChange={(e) => setSelectedProductionDate(e.target.value)}
-                    />
+                    <div className="grid grid-cols-2 gap-4 ml-4">
+                     {/* <br/> */}
+                               <Label>Select Production window</Label>
+                               <br/>
+
+                    <div>
+                      <Label>Production Date</Label>
+                      <Input
+                        className="w-40"
+                        type="date"
+                        value={prodStartDate}
+                        onChange={(e) => setProdStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>Actual Values Date</Label>
+                      <Input
+                        className="w-40"
+                        type="date"
+                        value={prodEndDate}
+                        onChange={(e) => setProdEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   )}
                   {/* {selectedSources.includes(source) && <span className="text-muted-foreground text-sm ml-2">Comment : Date automatically fetched for Training/Validation.</span>} */}
                 </div>
               ))}
             </div>
           </div>
-
+{/* 
 <Button 
   onClick={handleGenerate} 
   disabled={selectedSources.length === 0 || (selectedSources.includes('Production') && !selectedProductionDate)}
 >
   Generate Data Profile
+</Button> */}
+
+    <Button
+  onClick={handleGenerate}
+  disabled={
+    selectedSources.length === 0 ||
+    (selectedSources.includes('Production') && (!prodStartDate || !prodEndDate))
+  }
+>
+  Generate
 </Button>
 
 {generated && (

@@ -164,23 +164,24 @@ export function ReportGenerationStep({ model, findings, steps, onComplete }: Rep
             <div className="grid grid-cols-5 gap-3 mb-4">
               <div className="p-3 bg-gray-50 rounded text-center">
                 <p className="text-sm text-muted-foreground mb-1">Total</p>
-                <p className="text-xl">{findings.length}</p>
-              </div>
-              <div className="p-3 bg-red-50 rounded text-center">
-                <p className="text-sm text-muted-foreground mb-1">Critical</p>
-                <p className="text-xl text-red-600">{stats.critical}</p>
+                <p className="text-xl">7</p>
               </div>
               <div className="p-3 bg-orange-50 rounded text-center">
-                <p className="text-sm text-muted-foreground mb-1">High</p>
+                <p className="text-sm text-muted-foreground mb-1">Acceptable</p>
                 <p className="text-xl text-orange-600">{stats.high}</p>
               </div>
+              <div className="p-3 bg-red-50 rounded text-center">
+                <p className="text-sm text-muted-foreground mb-1">Non-Acceptable</p>
+                <p className="text-xl text-red-600">5</p>
+              </div>
+              
               <div className="p-3 bg-yellow-50 rounded text-center">
-                <p className="text-sm text-muted-foreground mb-1">Medium</p>
+                <p className="text-sm text-muted-foreground mb-1">Tracked</p>
                 <p className="text-xl text-yellow-600">{stats.medium}</p>
               </div>
               <div className="p-3 bg-blue-50 rounded text-center">
-                <p className="text-sm text-muted-foreground mb-1">Low</p>
-                <p className="text-xl text-blue-600">{stats.low}</p>
+                <p className="text-sm text-muted-foreground mb-1">Model Score</p>
+                <p className="text-xl text-blue-600">Tier 3</p>
               </div>
             </div>
 
