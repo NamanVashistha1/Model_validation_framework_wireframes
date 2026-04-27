@@ -1,468 +1,465 @@
-import { useState } from 'react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Layers } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { Layers, Info } from "lucide-react";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "../ui/card";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "../ui/hover-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Label } from "../ui/label";
+
+type TierLevel = 1 | 2 | 3;
+type TierName = "Tier 1" | "Tier 2" | "Tier 3";
+
+interface TieringScores {
+  businessImpact: TierLevel;
+  materiality: TierLevel;
+  complexity: TierLevel;
+  regulatory: TierLevel;
+  validation: TierLevel;
+  operational: TierLevel;
+}
+
+interface ModelTieringData {
+  previousScores?: Partial<TieringScores>;
+  lastValidationTier?: TierName;
+}
 
 interface ModelTieringStepProps {
-  model: any;
+  model: { tiering?: ModelTieringData };
   onComplete: () => void;
-  onAddFinding: (finding: Omit<any, 'id'>) => void;
+  onAddFinding: (finding: Omit<any, "id">) => void;
   onSave?: () => void;
   onSaveAndContinue?: () => void;
   onCancel?: () => void;
 }
 
+interface CriteriaCardProps {
+  title: string;
+  description: string;
+  value: TierLevel;
+  previousScore: TierLevel;
+  previousLabel: string;
+  info: string[];
+  onChange: (value: TierLevel) => void;
+}
+
+const SCORE_LABELS: Record<TierLevel, string> = {
+  1: "Low",
+  2: "Medium",
+  3: "High",
+};
+
+const DEFAULT_SCORES: TieringScores = {
+  businessImpact: 1,
+  materiality: 3,
+  complexity: 3,
+  regulatory: 2,
+  validation: 2,
+  operational: 2,
+};
+
+const MANUAL_TIER_PLACEHOLDER = "computed";
+const MANUAL_TIER_OPTIONS: TierName[] = ["Tier 1", "Tier 2", "Tier 3"];
+
+const computeTierFromScore = (score: number): TierName => {
+  if (score >= 2.5) return "Tier 3";
+  if (score >= 1.75) return "Tier 2";
+  return "Tier 1";
+};
+
+const formatScoreLabel = (score?: number | null): string =>
+  score === undefined || score === null ? "--" : score.toFixed(2);
+
+const CriteriaCard = ({
+  title,
+  description,
+  value,
+  previousScore,
+  previousLabel,
+  info,
+  onChange,
+}: CriteriaCardProps) => (
+  <Card className="border border-border/60 shadow-sm">
+    <CardContent className="space-y-4 py-6">
+      {/* <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
+          </div>
+          <HoverCard openDelay={150} closeDelay={150}>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex size-8 items-center justify-center rounded-md border border-transparent bg-muted text-muted-foreground transition hover:border-border hover:text-foreground"
+                aria-label={`More information about ${title}`}
+              >
+                <Info className="size-4" />
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent side="top" className="w-80 space-y-2 text-sm">
+              <p className="font-medium text-foreground">Assessment guidance</p>
+              <ul className="list-inside list-disc space-y-1 text-muted-foreground">
+                {info.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 lg:w-auto">
+          <div className="flex w-full max-w-[12rem] flex-col gap-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Last Tier
+            </Label>
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 px-3 py-2">
+              <Badge variant="outline" className="border-border/80 text-foreground">
+                {previousLabel}
+              </Badge>
+              <span className="text-xs text-muted-foreground">Score {previousScore}</span>
+            </div>
+          </div>
+
+          <div className="flex w-full max-w-[12rem] flex-col gap-2">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Update Tier
+            </Label>
+            <Select
+              value={String(value)}
+              onValueChange={(val) => onChange(Number(val) as TierLevel)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Low (1)</SelectItem>
+                <SelectItem value="2">Medium (2)</SelectItem>
+                <SelectItem value="3">High (3)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div> */}
+      <div className="flex items-center justify-between gap-6">
+
+  {/* LEFT: now expands */}
+  <div className="flex items-center gap-3 flex-1 min-w-0">
+    
+    <div className="space-y-1 min-w-0">
+      <CardTitle className="text-lg font-semibold truncate">
+        {title}
+      </CardTitle>
+      <CardDescription className="truncate">
+        {description}
+      </CardDescription>
+    </div>
+
+    
+  </div>
+
+  {/* RIGHT: fixed width blocks */}
+  <div className="flex items-center gap-6 shrink-0">
+    
+    {/* Last Tier */}
+    <div className="flex flex-col gap-1">
+      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+        Last Tier
+      </Label>
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 px-3 py-2">
+        <Badge variant="outline">{previousLabel}</Badge>
+        <span className="text-xs text-muted-foreground">
+          Score {previousScore}
+        </span>
+      </div>
+    </div>
+
+    {/* Update Tier */}
+    <div className="flex flex-col gap-1">
+      <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+        New Tier
+      </Label>
+      <Select
+        value={String(value)}
+        onValueChange={(val) => onChange(Number(val) as TierLevel)}
+      >
+        <SelectTrigger className="w-[140px]">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="1">Low (1)</SelectItem>
+          <SelectItem value="2">Medium (2)</SelectItem>
+          <SelectItem value="3">High (3)</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+
+  </div>
+  <HoverCard openDelay={150} closeDelay={150}>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex size-8 shrink-0 items-top justify-center rounded-md border border-transparent bg-muted text-muted-foreground transition hover:border-border hover:text-foreground"
+          aria-label={`More information about ${title}`}
+        >
+          <Info className="size-4" />
+        </button>
+      </HoverCardTrigger>
+
+      <HoverCardContent side="top" className="w-80 space-y-2 text-sm">
+        <p className="font-medium text-foreground">Assessment guidance</p>
+        <ul className="list-inside list-disc space-y-1 text-muted-foreground">
+          {info.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </HoverCardContent>
+    </HoverCard>
+</div>
+    </CardContent>
+  </Card>
+);
+
 export function ModelTieringStep({
   model,
-  onComplete,
-  onAddFinding,
   onSave,
   onSaveAndContinue,
   onCancel,
 }: ModelTieringStepProps) {
-  // State to store editable scores
-  const [editableScores, setEditableScores] = useState({
-    businessImpact: 1,
-    materialityOfUsage: 3,
-    complexity: 3,
-    regulatoryScope: 2,
-    validationFindings: 1,
-    operationalRisk: 2,
-  });
+  const previousScores: TieringScores = {
+    ...DEFAULT_SCORES,
+    ...(model.tiering?.previousScores ?? {}),
+  } as TieringScores;
 
-  // Initial values for scores and override
-  const [currentScore, setCurrentScore] = useState(1.95);
-  const [previousScore, setPreviousScore] = useState(2.5);
-  const [finalRating, setFinalRating] = useState('Tier 2');
-  const [overrideTier, setOverrideTier] = useState('Tier 3');
-  const [comments, setComments] = useState('Reg Use');
+  const [scores, setScores] = useState<TieringScores>(previousScores);
+  const [manualTier, setManualTier] = useState<TierName | null>(null);
 
-  // Function to calculate Final Rating based on override
-  const calculateFinalRating = () => {
-    if (overrideTier === 'Tier 3') {
-      setFinalRating('Tier 3');
-    } else if (overrideTier === 'Tier 2') {
-      setFinalRating('Tier 2');
-    } else if (overrideTier === 'Tier 1') {
-      setFinalRating('Tier 1');
-    } else if (currentScore >= 2.5) {
-      setFinalRating('Tier 2');
-    } else {
-      setFinalRating('Tier 1');
-    }
-  };
+  const computedScore = useMemo(() => {
+    const values = Object.values(scores);
+    const average = values.reduce((acc, val) => acc + val, 0) / values.length;
+    return Number(average.toFixed(2));
+  }, [scores]);
 
+  const computedTier = useMemo(() => computeTierFromScore(computedScore), [computedScore]);
+  const displayedTier = manualTier ?? computedTier;
 
-  const handleScoreChange = (param: string, value: number) => {
-    setEditableScores((prevScores) => ({
-      ...prevScores,
-      [param]: value,
-    }));
-  };
-
-  // Function to calculate total score based on editable scores
-  const calculateTotalScore = () => {
-    const scores = Object.values(editableScores);
-    const total = scores.reduce((sum, score) => sum + score, 0);
-    const average = total / scores.length;
-    return average.toFixed(2);
-  };
-
-  // Function to refresh score based on tiering criteria changes
-  const handleRefreshScore = () => {
-    const newScore = parseFloat(calculateTotalScore());
-    setCurrentScore(newScore);
-
-    // Update final rating based on new score (if no override)
-    if (overrideTier === 'Tier 3') {
-      // Keep override if set
-    } else {
-      const calculatedTier = newScore >= 2.5 ? 'Tier 2' : 'Tier 1';
-      setFinalRating(calculatedTier);
-    }
-  };
-
-  // Function to submit and update final rating table
-  const handleSubmitOverride = () => {
-    setFinalRating(overrideTier);
-    // This function updates the final rating table with current override values
-    // The final rating table already shows the current finalRating state
-    // So this is more of a confirmation that the override has been applied
-    console.log('Override submitted:', { overrideTier, finalRating, comments });
+  const handleScoreChange = (key: keyof TieringScores, value: TierLevel) => {
+    setScores((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Layers className="w-5 h-5" />
-          <h2>Model Tiering Review</h2>
-        </div>
-
-        <div className="space-y-4">
-          {/* First Table: Non-editable */}
-          <div>
-            <h3 className="text-lg font-medium mb-2">Model Information</h3>
-            <table className="table-auto w-full text-sm border-collapse border border-gray-300">
-              <thead>
-                <tr>
-                  <th className="border px-4 py-2">Model Name</th>
-                  <th className="border px-4 py-2">Credit Scoring</th>
-                </tr>
-                <tr>
-                  <th className="border px-4 py-2">Model Group</th>
-                  <th className="border px-4 py-2">SME</th>
-                </tr>
-              </thead>
-            </table>
-          </div>
-
-          {/* Second Table: Editable Scores */}
-          <div>
-            <h3 className="text-lg font-medium mb-2">Tiering Criteria Assessment</h3>
-            <table className="table-auto w-full text-sm border-collapse border border-gray-300">
-              <thead>
-                <tr>
-                  <th className="border px-4 py-2">Parameter</th>
-                  <th className="border px-4 py-2">Score</th>
-                  <th className="border px-4 py-2">Description</th>
-                  <th className="border px-4 py-2">Low (1)</th>
-                  <th className="border px-4 py-2">Medium (2)</th>
-                  <th className="border px-4 py-2">High (3)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Business Impact */}
-                <tr>
-                  <td className="border px-4 py-2">Business Impact / Criticality</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.businessImpact}
-                      onChange={(e) =>
-                        handleScoreChange('businessImpact', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Impact on capital, financials, customer decisions</td>
-                  <td className="border px-4 py-2">Minimal regulatory/financial impact</td>
-                  <td className="border px-4 py-2">Indirect financial impact</td>
-                  <td className="border px-4 py-2">Direct impact on capital, financials</td>
-                </tr>
-
-                {/* Materiality of Usage */}
-                <tr>
-                  <td className="border px-4 py-2">Materiality of Usage</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.materialityOfUsage}
-                      onChange={(e) =>
-                        handleScoreChange('materialityOfUsage', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Volume/frequency of use, monetary exposure</td>
-                  <td className="border px-4 py-2">Ad-hoc / limited usage</td>
-                  <td className="border px-4 py-2">Periodic usage</td>
-                  <td className="border px-4 py-2">High frequency & monetary exposure</td>
-                </tr>
-
-                {/* Complexity */}
-                <tr>
-                  <td className="border px-4 py-2">Complexity</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.complexity}
-                      onChange={(e) =>
-                        handleScoreChange('complexity', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Methodology sophistication & explainability</td>
-                  <td className="border px-4 py-2">Basic regression, rules-based</td>
-                  <td className="border px-4 py-2">GLMs with transformations</td>
-                  <td className="border px-4 py-2">Advanced ML/AI, low explainability</td>
-                </tr>
-
-                {/* Regulatory Scope */}
-                <tr>
-                  <td className="border px-4 py-2">Regulatory Scope</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.regulatoryScope}
-                      onChange={(e) =>
-                        handleScoreChange('regulatoryScope', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Regulatory in-scope vs out of scope</td>
-                  <td className="border px-4 py-2">Not in regulatory scope</td>
-                  <td className="border px-4 py-2">Indirect/internal policy scope</td>
-                  <td className="border px-4 py-2">Explicitly in-scope</td>
-                </tr>
-
-                {/* Validation Findings */}
-                <tr>
-                  <td className="border px-4 py-2">Validation Findings</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.validationFindings}
-                      onChange={(e) =>
-                        handleScoreChange('validationFindings', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Outstanding validation issues & track record</td>
-                  <td className="border px-4 py-2">Clean track record</td>
-                  <td className="border px-4 py-2">Few, well-documented issues</td>
-                  <td className="border px-4 py-2">Multiple outstanding findings</td>
-                </tr>
-
-                {/* Operational Risk */}
-                <tr>
-                  <td className="border px-4 py-2">Operational Risk</td>
-                  <td className="border px-4 py-2">
-                    <input
-                      type="number"
-                      value={editableScores.operationalRisk}
-                      onChange={(e) =>
-                        handleScoreChange('operationalRisk', parseInt(e.target.value))
-                      }
-                      min="1"
-                      max="3"
-                      className="border px-2 py-1 w-full"
-                    />
-                  </td>
-                  <td className="border px-4 py-2">Upstream/downstream dependencies & operational exposure</td>
-                  <td className="border px-4 py-2">Standalone, low operational impact</td>
-                  <td className="border px-4 py-2">Some dependencies, manageable risk</td>
-                  <td className="border px-4 py-2">Heavy dependencies, sensitive to data/system failures</td>
-                </tr>
-              </tbody>
-            </table>
-
-            {/* Refresh Score Button */}
-             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                <Button  onClick={handleRefreshScore} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
-                  Refresh Score
-                </Button>
-              </div>
-            <div className="mt-4 flex flex-col gap-2">
-              {/* <Button  variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
-                  Add Drift +
-                </Button>
-              <Button
-                onClick={handleRefreshScore}
-               
-              >
-                Refresh Score
-              </Button> */}
+    <div className="space-y-8">
+      <Card className="border-none bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+        <CardContent className="flex flex-wrap items-center justify-between gap-6 py-6">
+          <div className="flex items-start gap-3">
+            <span className="rounded-full bg-primary/15 p-2 text-primary">
+              <Layers className="size-5" />
+            </span>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold">Model Tiering Review</h2>
               <p className="text-sm text-muted-foreground">
-                <strong>Note:</strong> On the basis of changes in the above table, clicking this button will update the score based on calculation in the lower table.
+                Evaluate the model against tiering criteria to determine oversight requirements.
               </p>
             </div>
           </div>
-        </div>
-  {/* First Table: Non-editable */}
-        <div>
-          <h3 className="text-lg font-medium mb-2">Model Scoring</h3>
-          <table className="table-auto w-full text-sm border-collapse border border-gray-300">
-            <thead>
-              <tr>
-                <th className="border px-4 py-2">Parameter</th>
-                <th className="border px-4 py-2">Current Score</th>
-                <th className="border px-4 py-2">Previous Score</th>
-                
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="border px-4 py-2">Total Score</td>
-                <td className="border px-4 py-2">{currentScore}</td>
-                <td className="border px-4 py-2">{previousScore}</td>
-              </tr>
-              <tr>
-                <td className="border px-4 py-2">Tier</td>
-                <td className="border px-4 py-2">{finalRating}</td>
-                <td className="border px-4 py-2">Tier 2 </td>
-              </tr>
-              <tr>
-                <td className="border px-4 py-2">Override</td>
-<td className="border px-4 py-2">
-                  <select
-                    className="w-full border px-2 py-1"
-                    value={overrideTier}
-                    onChange={(e) => {
-                      setOverrideTier(e.target.value);
-                      calculateFinalRating();
-                    }}
-                  >
-                    <option value="Tier 1">Tier 1</option>
-                    <option value="Tier 2">Tier 2</option>
-                    <option value="Tier 3">Tier 3</option>
-                  </select>
-                </td>
-<td className="border px-4 py-2 bg-gray-100 text-gray-600">
-                  tier 2
-                </td>
-
-              </tr>
-               <tr>
-                <td className="border px-4 py-2">Comments/Reasons</td>
-                 <td className="border px-4 py-2">
-                  <input
-                    type="text"
-                    className="w-full border px-2 py-1"
-                    value={comments}
-                    onChange={(e) => setComments(e.target.value)}
-                  />
-                </td>
-                <td className="border px-4 py-2 bg-gray-100 text-gray-600">
-                  {comments}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Submit Button */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                <Button  onClick={handleSubmitOverride} variant="outline" style={{ padding: "8px 16px", backgroundColor:"black", color:"#fff" }}>
-                  Submit
-                </Button>
-              </div>
-          {/* <div className="mt-4">
-            <Button
-              onClick={handleSubmitOverride}
-              className="bg-purple-500 hover:bg-purple-600 text-white w-fit"
-            >
-              Submit
-            </Button>
-          </div> */}
-        </div>
-
-        {/* Second Table: Editable Override and Comments */}
-        <div>
-          <h3 className="text-lg font-medium mb-2">Final Rating</h3>
-          <table className="table-auto w-full text-sm border-collapse border border-gray-300">
-            <thead>
-              <tr>
-                <th className="border px-4 py-2"></th>
-                <th className="border px-4 py-2">Current Score</th>
-                <th className="border px-4 py-2">Previous Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                 <td className="border px-4 py-2">Tier</td>
-                <td className="border px-4 py-2">{finalRating}</td>
-                <td className="border px-4 py-2 bg-gray-100 text-gray-600">Tier 2</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        {/* Buttons */}
-        {/* <div className="flex justify-end gap-3 mt-6">
-          <Button onClick={() => { if (onCancel) onCancel(); }}>Cancel</Button>
-          <Button onClick={() => { if (onSave) onSave(); }}>Save</Button>
-          <Button onClick={() => { if (onSaveAndContinue) onSaveAndContinue(); }}>Save and Continue</Button>
-        </div> */}
-         <div className="flex justify-end gap-3 mt-6">
-          <Button
-           style={{
-      backgroundColor: "red", // blue-500
-      color: "white",
-      fontSize: "14px",
-      fontWeight: 500,
-      padding: "8px 16px",
-      borderRadius: "6px",
-      border: "none",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease",
-    }}
-            onClick={() => {
-              // Cancel functionality - could reset state or go back
-              if (onCancel) onCancel();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-           style={{
-      backgroundColor: "#3b82f6", // blue-500
-      color: "white",
-      fontSize: "14px",
-      fontWeight: 500,
-      padding: "8px 16px",
-      borderRadius: "6px",
-      border: "none",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease",
-    }}
-            onClick={() => {
-              // Save functionality - save current progress
-              if (onSave) onSave();
-            }}
-          >
-            Save
-          </Button>
-          <Button
-           style={{
-      backgroundColor: "green", // blue-500
-      color: "white",
-      fontSize: "14px",
-      fontWeight: 500,
-      padding: "8px 16px",
-      borderRadius: "6px",
-      border: "none",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease",
-    }}
-            onClick={() => {
-              // Save and continue to next step
-              if (onSaveAndContinue) onSaveAndContinue();
-            }}
-          >
-            Save and Continue
-          </Button>
-        </div>  
+      
+        </CardContent>
       </Card>
 
-       {/*<div className="space-y-6">
-      <Card className="p-6">
-         <div className="flex items-center gap-2 mb-4">
-          <Layers className="w-5 h-5" />
-          <h2>Model Tiering</h2>
-        </div>
+      <div className="space-y-4">
+        <CriteriaCard
+          title="Business Impact / Criticality"
+          description="Impact on capital, financials, customer decisions"
+          value={scores.businessImpact}
+          previousScore={previousScores.businessImpact}
+          previousLabel={SCORE_LABELS[previousScores.businessImpact]}
+          info={[
+            "Low = Minimal regulatory/financial impact",
+            "Medium = Indirect financial impact",
+            "High = Direct impact on capital/financials",
+          ]}
+          onChange={(value) => handleScoreChange("businessImpact", value)}
+        />
 
-       
+        <CriteriaCard
+          title="Materiality of Usage"
+          description="Volume/frequency of use, monetary exposure"
+          value={scores.materiality}
+          previousScore={previousScores.materiality}
+          previousLabel={SCORE_LABELS[previousScores.materiality]}
+          info={[
+            "Low = Ad-hoc / limited usage",
+            "Medium = Periodic usage",
+            "High = High frequency & exposure",
+          ]}
+          onChange={(value) => handleScoreChange("materiality", value)}
+        />
 
-        <div className="flex justify-end gap-3 mt-6">
-          <Button onClick={() => { if (onCancel) onCancel(); }}>Cancel</Button>
-          <Button onClick={() => { if (onSave) onSave(); }}>Save</Button>
-          <Button onClick={() => { if (onSaveAndContinue) onSaveAndContinue(); }}>Save and Continue</Button>
-        </div>
+        <CriteriaCard
+          title="Complexity"
+          description="Methodology sophistication & explainability"
+          value={scores.complexity}
+          previousScore={previousScores.complexity}
+          previousLabel={SCORE_LABELS[previousScores.complexity]}
+          info={[
+            "Low = Rules-based / regression",
+            "Medium = GLMs",
+            "High = Advanced ML / low explainability",
+          ]}
+          onChange={(value) => handleScoreChange("complexity", value)}
+        />
+
+        <CriteriaCard
+          title="Regulatory Scope"
+          description="Regulatory in-scope vs out of scope"
+          value={scores.regulatory}
+          previousScore={previousScores.regulatory}
+          previousLabel={SCORE_LABELS[previousScores.regulatory]}
+          info={[
+            "Low = Not in regulatory scope",
+            "Medium = Internal policy scope",
+            "High = Explicit regulatory scope",
+          ]}
+          onChange={(value) => handleScoreChange("regulatory", value)}
+        />
+
+        <CriteriaCard
+          title="Validation Findings"
+          description="Outstanding validation issues & track record"
+          value={scores.validation}
+          previousScore={previousScores.validation}
+          previousLabel={SCORE_LABELS[previousScores.validation]}
+          info={[
+            "Low = Clean track record",
+            "Medium = Few issues",
+            "High = Multiple findings",
+          ]}
+          onChange={(value) => handleScoreChange("validation", value)}
+        />
+
+        <CriteriaCard
+          title="Operational Risk"
+          description="Dependencies & operational exposure"
+          value={scores.operational}
+          previousScore={previousScores.operational}
+          previousLabel={SCORE_LABELS[previousScores.operational]}
+          info={[
+            "Low = Standalone",
+            "Medium = Manageable dependencies",
+            "High = High dependency / sensitive",
+          ]}
+          onChange={(value) => handleScoreChange("operational", value)}
+        />
+      </div>
+
+      <Card className="border border-border/80 shadow-sm">
+        <CardHeader className="pb-4 space-y-2">
+  
+  {/* Top Row: Title + Button */}
+  <div className="flex items-center justify-between">
+    <CardTitle className="text-lg font-semibold">
+      Tier Recommendation Summary
+    </CardTitle>
+
+    <Button onClick={() => setScores({ ...scores })}>
+      Compute Tier
+    </Button>
+  </div>
+
+  {/* Description Row */}
+  <CardDescription>
+    Review historical tiering, computed recommendation, and apply overrides if needed before saving.
+  </CardDescription>
+
+</CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg border border-border/80 bg-muted/40 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Last Validation Tier
+              </p>
+              <p className="mt-2 text-xl font-semibold">
+                {model.tiering?.lastValidationTier ?? "Not available"}
+              </p>
+              <p className="text-xs text-muted-foreground">From previous validation cycle</p>
+            </div>
+            <div className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Computed Tier
+              </p>
+              <p className="mt-2 text-xl font-semibold text-primary">{computedTier}</p>
+              <p className="text-xs text-primary/80">Based on current criteria selections</p>
+            </div>
+            <div className="rounded-lg border border-secondary/40 bg-secondary/10 px-4 py-3">
+              <Label className="text-xs uppercase tracking-wide text-secondary-foreground">
+                Tier Override (Optional)
+              </Label>
+              <Select
+                value={manualTier ?? MANUAL_TIER_PLACEHOLDER}
+                onValueChange={(val) =>
+                  setManualTier(val === MANUAL_TIER_PLACEHOLDER ? null : (val as TierName))
+                }
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Keep computed tier" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={MANUAL_TIER_PLACEHOLDER}>Use computed tier</SelectItem>
+                  {MANUAL_TIER_OPTIONS.map((tier) => (
+                    <SelectItem key={tier} value={tier}>
+                      {tier}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Overrides final recommendation when populated.
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/70 bg-muted/30 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Final Output
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <Badge variant="secondary" className="text-base">
+                {displayedTier}
+              </Badge>
+              
+            </div>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
+            Document any overrides within findings if manual adjustments are made. Save to persist the selected recommendation.
+          </p>
+        </CardContent>
       </Card>
-    </div> */}
+
+      <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:justify-end">
+        <Button variant="destructive" onClick={onCancel} className="sm:min-w-36">
+          Cancel
+        </Button>
+        <Button onClick={onSave} className="sm:min-w-36" variant="secondary">
+          Save
+        </Button>
+        <Button onClick={onSaveAndContinue} className="sm:min-w-40">
+          Save and Continue
+        </Button>
+      </div>
     </div>
   );
 }
